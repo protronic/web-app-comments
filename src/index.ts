@@ -9,14 +9,18 @@ import {
 } from '@opencloud-eu/web-pkg'
 import { Resource, SpaceResource, urlJoin } from '@opencloud-eu/web-client'
 import { computed, markRaw, unref } from 'vue'
-import { useGettext } from 'vue3-gettext'
 import CommentsPanel from './components/CommentsPanel.vue'
+import { commentMessages as msg } from './i18n/messages'
+import { registerCommentTranslations } from './i18n/registerTranslations'
+import { useCommentGettext } from './i18n/useCommentGettext'
 
 const applicationId = 'comments'
 
 export default defineWebApplication({
   setup() {
-    const { $gettext } = useGettext()
+    registerCommentTranslations(translations)
+
+    const { $gettext } = useCommentGettext()
     const userStore = useUserStore()
     const sidebarExtensions = useExtensions()
 
@@ -27,7 +31,7 @@ export default defineWebApplication({
         component: () => import('./views/CommentsDashboard.vue'),
         meta: {
           authContext: 'user',
-          title: $gettext('Comment dashboard'),
+          title: $gettext(msg.commentDashboard),
           patchCleanPath: true
         }
       }
@@ -42,7 +46,7 @@ export default defineWebApplication({
         {
           id: `app.${applicationId}.dashboard.menuItem`,
           type: 'appMenuItem',
-          label: () => $gettext('Comment dashboard'),
+          label: () => $gettext(msg.commentDashboard),
           icon: 'chat-1',
           path: urlJoin(applicationId, 'dashboard'),
           color: 'white'
@@ -57,7 +61,7 @@ export default defineWebApplication({
 
     return {
       appInfo: {
-        name: $gettext('Comments'),
+        name: $gettext(msg.comments),
         id: applicationId,
         icon: 'chat-1',
         iconFillType: 'line'
@@ -70,7 +74,7 @@ export default defineWebApplication({
 })
 
 export function useExtensions() {
-  const { $gettext } = useGettext()
+  const { $gettext } = useCommentGettext()
   const userStore = useUserStore()
 
   return computed<Extension[]>(() => {
@@ -85,7 +89,7 @@ export function useExtensions() {
           name: 'comments',
           icon: 'chat-1',
           iconFillType: 'line',
-          title: () => $gettext('Comments'),
+          title: () => $gettext(msg.comments),
           component: markRaw(CommentsPanel),
           componentAttrs: (panelContext) => ({
             panelContext

@@ -14,9 +14,7 @@
       </div>
       <oc-button appearance="raw" size="small" :disabled="disabled" @click="toggleResolved">
         {{
-          thread.status === 'resolved'
-            ? $gettext('Reopen')
-            : $gettext('Resolve')
+          thread.status === 'resolved' ? $gettext(msg.reopen) : $gettext(msg.resolve)
         }}
       </oc-button>
     </header>
@@ -43,7 +41,7 @@
               :disabled="disabled"
               @click="startEdit(comment)"
             >
-              {{ $gettext('Edit') }}
+              {{ $gettext(msg.edit) }}
             </oc-button>
             <oc-button
               appearance="raw"
@@ -51,7 +49,7 @@
               :disabled="disabled"
               @click="emit('delete-comment', thread.id, comment.id)"
             >
-              {{ $gettext('Delete') }}
+              {{ $gettext(msg.delete) }}
             </oc-button>
           </div>
         </div>
@@ -59,8 +57,8 @@
         <CommentForm
           v-if="editingCommentId === comment.id"
           :initial-body="comment.body"
-          :submit-label="$gettext('Save')"
-          :placeholder="$gettext('Update comment')"
+          :submit-label="$gettext(msg.save)"
+          :placeholder="$gettext(msg.updateComment)"
           :disabled="disabled"
           cancelable
           @submit="updateComment(comment.id, $event)"
@@ -70,7 +68,7 @@
           v-else-if="comment.deletedAt"
           class="ext:m-0 ext:text-sm ext:italic ext:text-role-on-surface-variant"
         >
-          {{ $gettext('Comment deleted') }}
+          {{ $gettext(msg.commentDeleted) }}
         </p>
         <div v-else class="comments-markdown ext:text-sm" v-html="renderCommentMarkdown(comment.body)" />
       </li>
@@ -85,8 +83,8 @@
     <CommentForm
       v-else
       class="ext:mt-3"
-      :submit-label="$gettext('Reply')"
-      :placeholder="$gettext('Write a reply')"
+      :submit-label="$gettext(msg.reply)"
+      :placeholder="$gettext(msg.writeReply)"
       :disabled="disabled"
       @submit="emit('reply', thread.id, $event)"
     />
@@ -95,14 +93,14 @@
 
 <script setup lang="ts">
 import { computed, ref, unref } from 'vue'
-import { useGettext } from 'vue3-gettext'
 import { getThreadTitleLine } from '../utils/comments'
 import { CommentMessage, CommentThread } from '../types'
 import { renderCommentMarkdown } from '../utils/markdown'
-
+import { commentMessages as msg } from '../i18n/messages'
+import { useCommentGettext } from '../i18n/useCommentGettext'
 import CommentForm from './CommentForm.vue'
 
-const { $gettext, current: currentLanguage } = useGettext()
+const { $gettext, current: currentLanguage } = useCommentGettext()
 
 const { thread, currentUserId, disabled = false } = defineProps<{
   thread: CommentThread
@@ -125,15 +123,15 @@ const threadTitle = computed(() => {
     return preview
   }
 
-  return thread.status === 'resolved' ? $gettext('Resolved thread') : $gettext('Open thread')
+  return thread.status === 'resolved' ? $gettext(msg.resolvedThread) : $gettext(msg.openThread)
 })
 
 const resolvedLabel = computed(() => {
   if (!thread.resolvedBy || !thread.resolvedAt) {
-    return $gettext('Resolved')
+    return $gettext(msg.resolved)
   }
 
-  return $gettext('Resolved by %{user} on %{date}', {
+  return $gettext(msg.resolvedBy, {
     user: thread.resolvedBy.displayName,
     date: formattedDate(thread.resolvedAt)
   })

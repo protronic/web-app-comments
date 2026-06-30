@@ -1,12 +1,13 @@
 import { onMounted, ref, unref, watch } from 'vue'
 import { useClientService, useMessages, useSpacesStore, useUserStore } from '@opencloud-eu/web-pkg'
-import { useGettext } from 'vue3-gettext'
+import { useCommentGettext } from '../i18n/useCommentGettext'
+import { commentMessages as msg } from '../i18n/messages'
 import { CommentsDashboardQuery, DashboardThreadEntry } from '../types'
 import { WebdavSidecarDashboardStorage } from '../storage/WebdavSidecarDashboardStorage'
 import { loadDashboardSpaces } from '../utils/dashboardSpaces'
 
 export function useCommentsDashboard() {
-  const { $gettext } = useGettext()
+  const { $gettext } = useCommentGettext()
   const { showErrorMessage } = useMessages()
   const clientService = useClientService()
   const spacesStore = useSpacesStore()
@@ -19,8 +20,8 @@ export function useCommentsDashboard() {
   const error = ref<string>()
   const availableTags = ref<string[]>([])
   const query = ref<CommentsDashboardQuery>({
-    status: 'all',
-    answered: 'all',
+    status: 'open',
+    answered: 'answered',
     type: 'all',
     tag: 'all'
   })
@@ -49,7 +50,7 @@ export function useCommentsDashboard() {
       entries.value = result.entries
       total.value = result.total
     } catch (e) {
-      error.value = $gettext('Failed to load comment dashboard')
+      error.value = $gettext(msg.failedToLoadCommentDashboard)
       showErrorMessage({ title: error.value, errors: [e] })
     } finally {
       isLoading.value = false

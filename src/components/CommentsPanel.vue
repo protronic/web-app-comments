@@ -11,28 +11,24 @@
       v-if="!commentTarget"
       class="ext:flex ext:flex-1 ext:items-center ext:justify-center ext:text-center ext:text-sm ext:text-role-on-surface-variant"
     >
-      {{ $gettext('Select one file or folder to view comments.') }}
+      {{ $gettext(msg.selectTarget) }}
     </div>
 
     <template v-else>
       <CommentForm
         :key="commentTarget.id"
-        :submit-label="$gettext('Comment')"
-        :placeholder="$gettext('Write a comment')"
+        :submit-label="$gettext(msg.comment)"
+        :placeholder="$gettext(msg.writeComment)"
         :disabled="isSaving"
         @submit="createThread"
       />
 
       <p class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant">
-        {{
-          $gettext(
-            'Prototype storage: comments are stored as JSON sidecar files in .conflu/comments.'
-          )
-        }}
+        {{ $gettext(msg.prototypeStorage) }}
       </p>
 
       <div v-if="isLoading" class="ext:flex ext:flex-1 ext:items-center ext:justify-center">
-        <oc-spinner size="small" :aria-label="$gettext('Loading comments')" />
+        <oc-spinner size="small" :aria-label="$gettext(msg.loadingComments)" />
       </div>
 
       <div
@@ -43,7 +39,7 @@
           {{ error }}
         </p>
         <oc-button appearance="outline" size="small" @click="loadComments">
-          {{ $gettext('Retry') }}
+          {{ $gettext(msg.retry) }}
         </oc-button>
       </div>
 
@@ -51,7 +47,7 @@
         v-else-if="threads.length === 0"
         class="ext:flex ext:flex-1 ext:items-center ext:justify-center ext:text-center ext:text-sm ext:text-role-on-surface-variant"
       >
-        {{ $gettext('No comments yet. Start the discussion above.') }}
+        {{ $gettext(msg.noCommentsYet) }}
       </div>
 
       <div v-else class="ext:flex ext:flex-1 ext:flex-col ext:gap-3 ext:overflow-y-auto">
@@ -74,13 +70,14 @@
 <script setup lang="ts">
 import { computed, unref } from 'vue'
 import { Resource } from '@opencloud-eu/web-client'
-import { useGettext } from 'vue3-gettext'
 import { createCommentTarget, resolveSidebarSpace } from '../utils/target'
 import { useComments } from '../composables/useComments'
+import { commentMessages as msg } from '../i18n/messages'
+import { useCommentGettext } from '../i18n/useCommentGettext'
 import CommentForm from './CommentForm.vue'
 import CommentThread from './CommentThread.vue'
 
-const { $gettext } = useGettext()
+const { $gettext } = useCommentGettext()
 
 const { panelContext } = defineProps<{
   panelContext: Record<string, any>

@@ -6,13 +6,14 @@ import {
   useUserStore
 } from '@opencloud-eu/web-pkg'
 import { MESSAGE_TYPE } from '@opencloud-eu/web-client/sse'
-import { useGettext } from 'vue3-gettext'
+import { useCommentGettext } from '../i18n/useCommentGettext'
+import { commentMessages as msg } from '../i18n/messages'
 import { CommentAuthor, CommentStorage, CommentTarget, CommentThread } from '../types'
 import { WebdavSidecarCommentStorage } from '../storage/WebdavSidecarCommentStorage'
 import { sortThreads } from '../utils/comments'
 
 export function useComments(target: () => CommentTarget | null) {
-  const { $gettext } = useGettext()
+  const { $gettext } = useCommentGettext()
   const { showErrorMessage } = useMessages()
   const clientService = useClientService()
   const { webdav } = clientService
@@ -47,7 +48,7 @@ export function useComments(target: () => CommentTarget | null) {
     try {
       threads.value = await storage.list(currentTarget)
     } catch (e) {
-      error.value = $gettext('Failed to load comments')
+      error.value = $gettext(msg.failedToLoadComments)
       showErrorMessage({ title: error.value, errors: [e] })
     } finally {
       isLoading.value = false
@@ -110,7 +111,7 @@ export function useComments(target: () => CommentTarget | null) {
       await mutation(currentTarget)
       threads.value = sortThreads(await storage.list(currentTarget))
     } catch (e) {
-      error.value = $gettext('Failed to save comment')
+      error.value = $gettext(msg.failedToSaveComment)
       showErrorMessage({ title: error.value, errors: [e] })
     } finally {
       isSaving.value = false

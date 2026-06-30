@@ -8,7 +8,7 @@
     />
     <div class="ext:flex ext:items-center ext:justify-between ext:gap-2">
       <p class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant">
-        {{ $gettext('Markdown is supported.') }}
+        {{ $gettext(msg.markdownSupported) }}
       </p>
       <div class="ext:flex ext:gap-2">
         <oc-button
@@ -18,7 +18,7 @@
           :disabled="disabled"
           @click.prevent="cancel"
         >
-          {{ $gettext('Cancel') }}
+          {{ $gettext(msg.cancel) }}
         </oc-button>
         <oc-button
           appearance="filled"
@@ -26,7 +26,7 @@
           :disabled="disabled || !body.trim()"
           @click.prevent="submit"
         >
-          {{ disabled ? $gettext('Saving…') : submitLabel }}
+          {{ disabled ? $gettext(msg.saving) : submitLabel }}
         </oc-button>
       </div>
     </div>
@@ -35,9 +35,10 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useGettext } from 'vue3-gettext'
+import { commentMessages as msg } from '../i18n/messages'
+import { useCommentGettext } from '../i18n/useCommentGettext'
 
-const { $gettext } = useGettext()
+const { $gettext } = useCommentGettext()
 
 const {
   initialBody = '',
