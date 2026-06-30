@@ -1,12 +1,13 @@
 services:
   opencloud:
     image: ${OC_IMAGE:-opencloudeu/opencloud-rolling:latest}
+    restart: unless-stopped
     networks:
       - opencloud-net
     entrypoint: /bin/sh
     command: ['-c', 'opencloud init || true && opencloud server']
     environment:
-      OC_URL: https://host.docker.internal:9200
+      OC_URL: https://test.oc:9200
       OC_INSECURE: true
       OC_LOG_LEVEL: error
       IDM_ADMIN_PASSWORD: admin
@@ -17,7 +18,7 @@ services:
     labels:
       traefik.enable: true
       traefik.http.routers.opencloud.tls: true
-      traefik.http.routers.opencloud.rule: Host(`host.docker.internal`) && PathPrefix(`/`)
+      traefik.http.routers.opencloud.rule: Host(`test.oc`) && PathPrefix(`/`)
       traefik.http.routers.opencloud.entrypoints: opencloud
       traefik.http.services.opencloud.loadbalancer.server.port: 9200
       traefik.http.routers.opencloud.middlewares: cors
@@ -33,13 +34,13 @@ services:
     networks:
       opencloud-net:
         aliases:
-          - host.docker.internal:9200
+          - test.oc
     restart: unless-stopped
     entrypoint:
       [
         '/bin/sh',
         '-c',
-        "[ -f /certificates/server.key ] && ./entrypoint.sh $$@ || (apk add openssl && openssl req -subj '/CN=opencloud.test' -x509 -sha256 -nodes -days 3650 -newkey rsa:2048 -keyout /certificates/server.key -out /certificates/server.crt && chmod -R 777 /certificates && ./entrypoint.sh $$@)"
+        "[ -f /certificates/server.key ] && ./entrypoint.sh $$@ || (apk add openssl && openssl req -subj '/CN=test.oc' -x509 -sha256 -nodes -days 3650 -newkey rsa:2048 -keyout /certificates/server.key -out /certificates/server.crt && chmod -R 777 /certificates && ./entrypoint.sh $$@)"
       ]
     command:
       - '--pilot.dashboard=false'

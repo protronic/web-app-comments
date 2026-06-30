@@ -6,8 +6,8 @@ import {
   SidebarPanelExtension,
   useUserStore
 } from '@opencloud-eu/web-pkg'
-import { Resource } from '@opencloud-eu/web-client'
-import { computed } from 'vue'
+import { Resource, SpaceResource } from '@opencloud-eu/web-client'
+import { computed, markRaw } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import CommentsPanel from './components/CommentsPanel.vue'
 
@@ -22,7 +22,7 @@ export default defineWebApplication({
       appInfo: {
         name: $gettext('Comments'),
         id: applicationId,
-        icon: 'chat',
+        icon: 'chat-1',
         iconFillType: 'line'
       },
       translations,
@@ -45,21 +45,16 @@ export function useExtensions() {
         extensionPointIds: ['global.files.sidebar'],
         panel: {
           name: 'comments',
-          icon: 'chat',
+          icon: 'chat-1',
           iconFillType: 'line',
           title: () => $gettext('Comments'),
-          component: CommentsPanel,
-          componentAttrs: (panelContext) => {
-            return {
-              panelContext
-            }
-          },
-          isRoot: () => true,
-          isVisible: ({ items }) => {
-            return items?.length === 1
-          }
+          component: markRaw(CommentsPanel),
+          componentAttrs: (panelContext) => ({
+            panelContext
+          }),
+          isVisible: ({ items }) => items?.length === 1
         }
-      } as SidebarPanelExtension<Resource, Resource, Resource>
+      } as SidebarPanelExtension<SpaceResource, Resource, Resource>
     ]
   })
 }

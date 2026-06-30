@@ -96,8 +96,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
+import { getThreadTitleLine } from '../utils/comments'
 import { CommentMessage, CommentThread } from '../types'
 import { renderCommentMarkdown } from '../utils/markdown'
+
 import CommentForm from './CommentForm.vue'
 
 const { $gettext, current: currentLanguage } = useGettext()
@@ -118,6 +120,11 @@ const emit = defineEmits<{
 const editingCommentId = ref<string>()
 
 const threadTitle = computed(() => {
+  const preview = getThreadTitleLine(thread)
+  if (preview) {
+    return preview
+  }
+
   return thread.status === 'resolved' ? $gettext('Resolved thread') : $gettext('Open thread')
 })
 

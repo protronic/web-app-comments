@@ -77,6 +77,20 @@ export function sortThreads(threads: CommentThread[]): CommentThread[] {
   })
 }
 
+export function getThreadTitleLine(thread: CommentThread): string | undefined {
+  const firstComment = thread.comments.find(
+    (comment) => !comment.deletedAt && comment.body.trim().length > 0
+  )
+
+  if (!firstComment) {
+    return undefined
+  }
+
+  const firstLine = firstComment.body.split(/\r?\n/, 1)[0]?.trim()
+
+  return firstLine || undefined
+}
+
 function createId(prefix: string): string {
   if ('crypto' in globalThis && typeof globalThis.crypto.randomUUID === 'function') {
     return `${prefix}:${globalThis.crypto.randomUUID()}`

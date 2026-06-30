@@ -1,13 +1,11 @@
 <template>
   <aside class="ext:flex ext:h-full ext:flex-col ext:gap-4 ext:p-4">
-    <section>
-      <h2 class="ext:m-0 ext:text-base ext:font-semibold">
-        {{ $gettext('Comments') }}
-      </h2>
-      <p v-if="selectedResource" class="ext:m-0 ext:text-sm ext:text-role-on-surface-variant">
-        {{ selectedResource.name }}
-      </p>
-    </section>
+    <p
+      v-if="selectedResource"
+      class="ext:m-0 ext:text-sm ext:text-role-on-surface-variant"
+    >
+      {{ selectedResource.name }}
+    </p>
 
     <div
       v-if="!commentTarget"
@@ -75,9 +73,9 @@
 
 <script setup lang="ts">
 import { computed, unref } from 'vue'
-import { Resource, SpaceResource } from '@opencloud-eu/web-client'
+import { Resource } from '@opencloud-eu/web-client'
 import { useGettext } from 'vue3-gettext'
-import { createCommentTarget } from '../utils/target'
+import { createCommentTarget, resolveSidebarSpace } from '../utils/target'
 import { useComments } from '../composables/useComments'
 import CommentForm from './CommentForm.vue'
 import CommentThread from './CommentThread.vue'
@@ -98,14 +96,7 @@ const selectedResource = computed<Resource | null>(() => {
   return items[0] as Resource
 })
 
-const selectedSpace = computed<SpaceResource | null>(() => {
-  return (
-    unref(panelContext?.space) ||
-    unref(panelContext?.currentSpace) ||
-    unref(panelContext?.activeSpace) ||
-    null
-  )
-})
+const selectedSpace = computed(() => resolveSidebarSpace(panelContext))
 
 const commentTarget = computed(() => {
   const space = unref(selectedSpace)

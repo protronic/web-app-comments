@@ -13,7 +13,9 @@ pnpm install && pnpm build:w
 docker compose up
 ```
 
-Open `https://host.docker.internal:9200` (user `admin` / `admin`).
+Add to `/etc/hosts`: `127.0.0.1 test.oc`
+
+Open `https://test.oc:9200` (user `admin` / `admin`).
 
 ## Build
 
