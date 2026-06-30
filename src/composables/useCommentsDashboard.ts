@@ -17,10 +17,23 @@ export function useCommentsDashboard() {
   const total = ref(0)
   const isLoading = ref(false)
   const error = ref<string>()
+  const availableTags = ref<string[]>([])
   const query = ref<CommentsDashboardQuery>({
     status: 'all',
-    answered: 'all'
+    answered: 'all',
+    type: 'all',
+    tag: 'all'
   })
+
+  const loadAvailableTags = async () => {
+    try {
+      availableTags.value = [...(await clientService.graphAuthenticated.tags.listTags())].sort(
+        (left, right) => left.localeCompare(right)
+      )
+    } catch {
+      availableTags.value = []
+    }
+  }
 
   const loadDashboard = async () => {
     if (!userStore.user) {
@@ -44,6 +57,7 @@ export function useCommentsDashboard() {
   }
 
   onMounted(() => {
+    void loadAvailableTags()
     void loadDashboard()
   })
 
@@ -51,6 +65,7 @@ export function useCommentsDashboard() {
     () => userStore.user,
     (user) => {
       if (user) {
+        void loadAvailableTags()
         void loadDashboard()
       }
     }
@@ -71,6 +86,7 @@ export function useCommentsDashboard() {
     total,
     isLoading,
     error,
+    availableTags,
     query,
     loadDashboard
   }

@@ -4,6 +4,7 @@ import {
   CommentsDashboardQuery,
   CommentsDashboardResult,
   DashboardLastReply,
+  DashboardTargetSummary,
   DashboardThreadEntry,
   DashboardSpaceSummary
 } from '../types'
@@ -13,15 +14,16 @@ import { isSpaceRootCommentTarget } from './resolveTarget'
 
 export function enrichDashboardTarget(
   space: SpaceResource,
-  target: CommentDocument['target']
-): CommentDocument['target'] {
+  target: DashboardTargetSummary
+): DashboardTargetSummary {
   if (isSpaceRootCommentTarget(space, target)) {
     return {
       ...target,
       id: target.id || space.id,
       name: space.name || target.name,
       path: '/',
-      isFolder: true
+      isFolder: true,
+      resourceType: 'space'
     }
   }
 
@@ -47,14 +49,14 @@ export function isThreadAnswered(thread: CommentThread): boolean {
 
 export function buildDashboardEntry(
   space: SpaceResource,
-  document: CommentDocument,
-  thread: CommentThread
+  thread: CommentThread,
+  target: DashboardTargetSummary
 ): DashboardThreadEntry {
   const lastReplyComment = getLastReplyComment(thread)
 
   return {
     thread,
-    target: enrichDashboardTarget(space, document.target),
+    target: enrichDashboardTarget(space, target),
     space: toDashboardSpaceSummary(space),
     replyCount: Math.max(0, countActiveComments(thread) - 1),
     isAnswered: isThreadAnswered(thread),
@@ -64,9 +66,10 @@ export function buildDashboardEntry(
 
 export function buildDashboardEntries(
   space: SpaceResource,
-  document: CommentDocument
+  document: CommentDocument,
+  target: DashboardTargetSummary
 ): DashboardThreadEntry[] {
-  return document.threads.map((thread) => buildDashboardEntry(space, document, thread))
+  return document.threads.map((thread) => buildDashboardEntry(space, thread, target))
 }
 
 export function filterDashboardEntries(
@@ -91,6 +94,14 @@ export function filterDashboardEntries(
     }
 
     if (query.spaceId && entry.space.id !== query.spaceId) {
+      return false
+    }
+
+    if (query.type && query.type !== 'all' && entry.target.resourceType !== query.type) {
+      return false
+    }
+
+    if (query.tag && query.tag !== 'all' && !entry.target.tags.includes(query.tag)) {
       return false
     }
 

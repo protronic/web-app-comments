@@ -1,6 +1,6 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
-import { CommentDocument } from '../types'
+import { CommentDocument, DashboardTargetSummary } from '../types'
 import { getSidecarContainerPath, getStableResourceId } from './target'
 
 export interface CommentDocumentRef {
@@ -13,14 +13,18 @@ export async function resolveCommentDocumentTarget(
   space: SpaceResource,
   document: CommentDocument,
   sidecarPath?: string
-): Promise<CommentDocument['target']> {
+): Promise<DashboardTargetSummary> {
   const fallback = document.target
   const containerPath = sidecarPath ? getSidecarContainerPath(sidecarPath) : undefined
+
+  if (isSpaceLevelSidecarTarget(fallback, containerPath)) {
+    return mapSpaceRootTargetSummary(fallback, space)
+  }
 
   if (fallback.isFolder && containerPath && containerPath !== '/') {
     try {
       const resource = await webdav.getFileInfo(space, { path: containerPath })
-      return mapResourceToTargetSummary(resource, fallback)
+      return mapResourceToTargetSummary(resource, fallback, space)
     } catch {
       // Fall back to the lookups below.
     }
@@ -29,7 +33,7 @@ export async function resolveCommentDocumentTarget(
   if (fallback.id) {
     try {
       const resource = await webdav.getFileInfo(space, { fileId: fallback.id })
-      const resolved = mapResourceToTargetSummary(resource, fallback)
+      const resolved = mapResourceToTargetSummary(resource, fallback, space)
 
       if (!shouldRetryFolderLookup(resolved, fallback)) {
         return resolved
@@ -42,7 +46,7 @@ export async function resolveCommentDocumentTarget(
   if (fallback.path) {
     try {
       const resource = await webdav.getFileInfo(space, { path: fallback.path })
-      return mapResourceToTargetSummary(resource, fallback)
+      return mapResourceToTargetSummary(resource, fallback, space)
     } catch {
       // Fall back to sidecar container lookup below.
     }
@@ -53,13 +57,13 @@ export async function resolveCommentDocumentTarget(
       const resource = await webdav.getFileInfo(space, { path: containerPath })
 
       if (fallback.isFolder || resource.isFolder) {
-        return mapResourceToTargetSummary(resource, fallback)
+        return mapResourceToTargetSummary(resource, fallback, space)
       }
 
       if (fallback.id) {
         try {
           const fileResource = await webdav.getFileInfo(space, { fileId: fallback.id })
-          return mapResourceToTargetSummary(fileResource, fallback)
+          return mapResourceToTargetSummary(fileResource, fallback, space)
         } catch {
           // Keep trying with the sidecar snapshot below.
         }
@@ -69,15 +73,15 @@ export async function resolveCommentDocumentTarget(
     }
   }
 
-  return fallback
+  return mapFallbackTargetSummary(fallback, space)
 }
 
 export async function resolveCommentDocumentTargets(
   webdav: WebDAV,
   space: SpaceResource,
   refs: CommentDocumentRef[]
-): Promise<Map<string, CommentDocument['target']>> {
-  const resolved = new Map<string, CommentDocument['target']>()
+): Promise<Map<string, DashboardTargetSummary>> {
+  const resolved = new Map<string, DashboardTargetSummary>()
   const targetIds = [...new Set(refs.map((ref) => ref.document.target.id))]
 
   for (const targetId of targetIds) {
@@ -98,19 +102,45 @@ export async function resolveCommentDocumentTargets(
 
 export function isSpaceRootCommentTarget(
   space: SpaceResource,
-  target: CommentDocument['target']
+  target: Pick<DashboardTargetSummary, 'id' | 'path' | 'isFolder'>
 ): boolean {
   if (!target.isFolder || target.path !== '/') {
     return false
   }
 
-  return target.id === space.id
+  return target.id === space.id || normalizeResourceId(target.id) === normalizeResourceId(space.id)
+}
+
+function isSpaceLevelSidecarTarget(
+  fallback: CommentDocument['target'],
+  containerPath: string | undefined
+): boolean {
+  return !!containerPath && containerPath === '/' && fallback.isFolder && fallback.path === '/'
+}
+
+function mapSpaceRootTargetSummary(
+  fallback: CommentDocument['target'],
+  space: SpaceResource
+): DashboardTargetSummary {
+  return {
+    id: space.id,
+    name: space.name || fallback.name,
+    path: '/',
+    isFolder: true,
+    resourceType: 'space',
+    tags: []
+  }
+}
+
+function normalizeResourceId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9._-]/g, '_')
 }
 
 function mapResourceToTargetSummary(
   resource: Resource,
-  fallback: CommentDocument['target']
-): CommentDocument['target'] {
+  fallback: CommentDocument['target'],
+  space: SpaceResource
+): DashboardTargetSummary {
   const isFolder = resource.isFolder ?? fallback.isFolder
   let path = resource.path || fallback.path
   let name = resource.name || fallback.name
@@ -123,16 +153,64 @@ function mapResourceToTargetSummary(
     name = getNameFromPath(path) || fallback.name
   }
 
-  return {
+  const summary: DashboardTargetSummary = {
     id: getStableResourceId(resource) || fallback.id,
     name,
     path,
-    isFolder
+    isFolder,
+    resourceType: getResourceTypeFromResource(resource, isFolder),
+    mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : undefined,
+    tags: Array.isArray(resource.tags) ? [...resource.tags] : []
+  }
+
+  return applySpaceRootMetadata(space, summary)
+}
+
+export function mapFallbackTargetSummary(
+  fallback: CommentDocument['target'],
+  space: SpaceResource
+): DashboardTargetSummary {
+  const summary: DashboardTargetSummary = {
+    id: fallback.id,
+    name: fallback.name,
+    path: fallback.path,
+    isFolder: fallback.isFolder,
+    resourceType: fallback.isFolder ? 'folder' : 'file',
+    tags: []
+  }
+
+  return applySpaceRootMetadata(space, summary)
+}
+
+function applySpaceRootMetadata(
+  space: SpaceResource,
+  target: DashboardTargetSummary
+): DashboardTargetSummary {
+  if (!isSpaceRootCommentTarget(space, target)) {
+    return target
+  }
+
+  return {
+    ...target,
+    resourceType: 'space',
+    isFolder: true,
+    path: '/'
   }
 }
 
+function getResourceTypeFromResource(
+  resource: Resource,
+  isFolder: boolean
+): DashboardTargetSummary['resourceType'] {
+  if (resource.type === 'folder' || isFolder) {
+    return 'folder'
+  }
+
+  return 'file'
+}
+
 function shouldRetryFolderLookup(
-  resolved: CommentDocument['target'],
+  resolved: DashboardTargetSummary,
   fallback: CommentDocument['target']
 ): boolean {
   if (!fallback.isFolder) {

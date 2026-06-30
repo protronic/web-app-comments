@@ -65,13 +65,27 @@ export interface UpdateCommentInput {
 
 export type DashboardStatusFilter = 'all' | 'open' | 'resolved'
 export type DashboardAnsweredFilter = 'all' | 'answered' | 'unanswered'
+export type DashboardResourceType = 'file' | 'folder' | 'space'
+export type DashboardTypeFilter = 'all' | DashboardResourceType
 
 export interface CommentsDashboardQuery {
   status?: DashboardStatusFilter
   answered?: DashboardAnsweredFilter
+  type?: DashboardTypeFilter
+  tag?: string
   spaceId?: string
   limit?: number
   offset?: number
+}
+
+export interface DashboardTargetSummary {
+  id: string
+  name: string
+  path: string
+  isFolder: boolean
+  resourceType: DashboardResourceType
+  mimeType?: string
+  tags: string[]
 }
 
 export interface DashboardSpaceSummary {
@@ -90,7 +104,7 @@ export interface DashboardLastReply {
 
 export interface DashboardThreadEntry {
   thread: CommentThread
-  target: CommentDocument['target']
+  target: DashboardTargetSummary
   space: DashboardSpaceSummary
   replyCount: number
   isAnswered: boolean

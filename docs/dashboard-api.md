@@ -34,6 +34,8 @@ const result = await api.listThreads(spaces, {
 |-------|--------|-------------|
 | `status` | `all`, `open`, `resolved` | Thread resolve state |
 | `answered` | `all`, `answered`, `unanswered` | Whether the thread has at least one reply |
+| `type` | `all`, `file`, `folder`, `space` | OpenCloud resource type from WebDAV |
+| `tag` | `all`, tag name | Requires the target resource to have the tag assigned |
 | `spaceId` | space id | Restrict to one space |
 | `limit` | number | Page size after filtering |
 | `offset` | number | Pagination offset after filtering |
@@ -53,6 +55,9 @@ interface DashboardThreadEntry {
     name: string
     path: string
     isFolder: boolean
+    resourceType: 'file' | 'folder' | 'space'
+    mimeType?: string
+    tags: string[]
   }
   space: {
     id: string
@@ -71,7 +76,7 @@ interface DashboardThreadEntry {
 }
 ```
 
-Target `name` and `path` are resolved from WebDAV at load time, so renames of files and folders show up on refresh without rewriting sidecar JSON.
+Target `name`, `path`, `resourceType`, `mimeType`, and `tags` are resolved from WebDAV at load time. Available tag names for the UI filter come from the Graph tags API (`/v1.0/extensions/org.libregraph/tags`).
 
 ## UI
 

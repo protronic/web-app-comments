@@ -15,7 +15,7 @@
       <p class="ext:m-0 ext:text-sm ext:text-role-on-surface-variant">
         {{
           $gettext(
-            'All comment threads across your spaces. Filter by open or resolved and answered or unanswered.'
+            'All comment threads across your spaces. Filter by status, replies, resource type, and tags.'
           )
         }}
       </p>
@@ -42,6 +42,32 @@
             <option value="all">{{ $gettext('All') }}</option>
             <option value="answered">{{ $gettext('Answered') }}</option>
             <option value="unanswered">{{ $gettext('Unanswered') }}</option>
+          </select>
+        </label>
+
+        <label class="ext:flex ext:flex-col ext:gap-1 ext:text-sm">
+          <span>{{ $gettext('Type') }}</span>
+          <select
+            v-model="query.type"
+            class="ext:rounded-md ext:border ext:border-role-outline ext:bg-role-surface ext:px-3 ext:py-2"
+          >
+            <option value="all">{{ $gettext('All') }}</option>
+            <option value="file">{{ $gettext('Files') }}</option>
+            <option value="folder">{{ $gettext('Folders') }}</option>
+            <option value="space">{{ $gettext('Spaces') }}</option>
+          </select>
+        </label>
+
+        <label class="ext:flex ext:flex-col ext:gap-1 ext:text-sm">
+          <span>{{ $gettext('Tag') }}</span>
+          <select
+            v-model="query.tag"
+            class="ext:rounded-md ext:border ext:border-role-outline ext:bg-role-surface ext:px-3 ext:py-2"
+          >
+            <option value="all">{{ $gettext('All') }}</option>
+            <option v-for="tag in availableTags" :key="tag" :value="tag">
+              {{ tag }}
+            </option>
           </select>
         </label>
       </div>
@@ -88,7 +114,8 @@
               {{ entry.target.name }} · {{ entry.target.path }}
             </p>
             <p class="ext:m-0 ext:mt-1 ext:text-xs ext:text-role-on-surface-variant">
-              {{ entry.space.name }} · {{ formattedDate(entry.thread.updatedAt) }}
+              {{ formatTargetMeta(entry) }} · {{ entry.space.name }} ·
+              {{ formattedDate(entry.thread.updatedAt) }}
             </p>
           </div>
 
@@ -128,7 +155,7 @@
 
         <div class="ext:mt-3 ext:flex ext:gap-2">
           <oc-button appearance="outline" size="small" @click="openTarget(entry)">
-            {{ entry.target.isFolder ? $gettext('Open folder') : $gettext('Open file') }}
+            {{ openTargetLabel(entry) }}
           </oc-button>
         </div>
       </article>
@@ -139,7 +166,7 @@
 
 <script setup lang="ts">
 import { unref } from 'vue'
-import { createLocationSpaces, useRouter } from '@opencloud-eu/web-pkg'
+import { createLocationSpaces, useRouter, useSpacesStore } from '@opencloud-eu/web-pkg'
 import { useGettext } from 'vue3-gettext'
 import { DashboardThreadEntry } from '../types'
 import { getThreadTitleLine } from '../utils/comments'
@@ -147,7 +174,8 @@ import { useCommentsDashboard } from '../composables/useCommentsDashboard'
 
 const { $gettext, current: currentLanguage } = useGettext()
 const router = useRouter()
-const { entries, total, isLoading, error, query, loadDashboard } = useCommentsDashboard()
+const spacesStore = useSpacesStore()
+const { entries, total, isLoading, error, availableTags, query, loadDashboard } = useCommentsDashboard()
 
 function getEntryTitle(entry: DashboardThreadEntry): string {
   const preview = getThreadTitleLine(entry.thread)
@@ -174,14 +202,60 @@ function formattedDate(value: string): string {
   }).format(new Date(value))
 }
 
+function formatTargetMeta(entry: DashboardThreadEntry): string {
+  const parts = [formatResourceType(entry.target.resourceType)]
+
+  if (entry.target.mimeType) {
+    parts.push(entry.target.mimeType)
+  }
+
+  if (entry.target.tags.length > 0) {
+    parts.push(entry.target.tags.join(', '))
+  }
+
+  return parts.join(' · ')
+}
+
+function formatResourceType(resourceType: DashboardThreadEntry['target']['resourceType']): string {
+  switch (resourceType) {
+    case 'space':
+      return $gettext('Space')
+    case 'folder':
+      return $gettext('Folder')
+    default:
+      return $gettext('File')
+  }
+}
+
+function openTargetLabel(entry: DashboardThreadEntry): string {
+  switch (entry.target.resourceType) {
+    case 'space':
+      return $gettext('Open space')
+    case 'folder':
+      return $gettext('Open folder')
+    default:
+      return $gettext('Open file')
+  }
+}
+
 function openTarget(entry: DashboardThreadEntry) {
+  const space = unref(spacesStore.spaces).find((candidate) => candidate.id === entry.space.id)
+
+  if (!space) {
+    return
+  }
+
   const routeName =
     entry.space.driveType === 'project' ? 'files-spaces-projects' : 'files-spaces-generic'
+  const path =
+    entry.target.resourceType === 'space' || entry.target.path === '/'
+      ? ''
+      : entry.target.path
 
   void router.push(
     createLocationSpaces(routeName, {
       params: {
-        driveAliasAndItem: `${entry.space.driveAlias}${entry.target.path}`
+        driveAliasAndItem: space.getDriveAliasAndItem({ path })
       }
     })
   )

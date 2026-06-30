@@ -7,7 +7,7 @@ import {
   isThreadAnswered,
   queryDashboardEntries
 } from '../../src/utils/dashboard'
-import { CommentDocument, CommentThread } from '../../src/types'
+import { CommentDocument, CommentThread, DashboardTargetSummary } from '../../src/types'
 
 describe('comments dashboard api helpers', () => {
   const space = mock<SpaceResource>({
@@ -17,13 +17,23 @@ describe('comments dashboard api helpers', () => {
     driveType: 'project'
   })
 
+  const target: DashboardTargetSummary = {
+    id: 'file-1',
+    name: 'Plan.md',
+    path: '/projects/plan.md',
+    isFolder: false,
+    resourceType: 'file',
+    mimeType: 'text/markdown',
+    tags: ['review']
+  }
+
   const document: CommentDocument = {
     version: 1,
     target: {
-      id: 'file-1',
-      name: 'Plan.md',
-      path: '/projects/plan.md',
-      isFolder: false
+      id: target.id,
+      name: target.name,
+      path: target.path,
+      isFolder: target.isFolder
     },
     threads: [
       {
@@ -90,13 +100,14 @@ describe('comments dashboard api helpers', () => {
   })
 
   it('builds dashboard entries with space and reply metadata', () => {
-    const entry = buildDashboardEntry(space, document, document.threads[1])
+    const entry = buildDashboardEntry(space, document.threads[1], target)
 
     expect(entry.space.name).toBe('Marketing')
     expect(entry.replyCount).toBe(1)
     expect(entry.isAnswered).toBe(true)
     expect(entry.lastReply?.author.displayName).toBe('Bob')
     expect(entry.lastReply?.preview).toBe('Answer')
+    expect(entry.target.tags).toEqual(['review'])
   })
 
   it('uses the current space name for space-root comment targets', () => {
@@ -107,15 +118,18 @@ describe('comments dashboard api helpers', () => {
       driveType: 'project'
     })
 
-    const target = enrichDashboardTarget(projectSpace, {
+    const enriched = enrichDashboardTarget(projectSpace, {
       id: 'space-root',
       name: 'Old space',
       path: '/',
-      isFolder: true
+      isFolder: true,
+      resourceType: 'space',
+      tags: []
     })
 
-    expect(target.name).toBe('Renamed space')
-    expect(target.path).toBe('/')
+    expect(enriched.name).toBe('Renamed space')
+    expect(enriched.path).toBe('/')
+    expect(enriched.resourceType).toBe('space')
   })
 
   it('keeps folder names when webdav reports the space root path', () => {
@@ -126,30 +140,34 @@ describe('comments dashboard api helpers', () => {
       driveType: 'personal'
     })
 
-    const target = enrichDashboardTarget(personalSpace, {
+    const enriched = enrichDashboardTarget(personalSpace, {
       id: 'folder-1',
       name: 'Testordner',
       path: '/',
-      isFolder: true
+      isFolder: true,
+      resourceType: 'folder',
+      tags: []
     })
 
-    expect(target.name).toBe('Testordner')
-    expect(target.path).toBe('/')
+    expect(enriched.name).toBe('Testordner')
+    expect(enriched.path).toBe('/')
   })
 
   it('derives folder names from the path when the name is missing', () => {
-    const target = enrichDashboardTarget(mock<SpaceResource>(), {
+    const enriched = enrichDashboardTarget(mock<SpaceResource>(), {
       id: 'folder-1',
       name: '',
       path: '/Projects/Demo',
-      isFolder: true
+      isFolder: true,
+      resourceType: 'folder',
+      tags: []
     })
 
-    expect(target.name).toBe('Demo')
+    expect(enriched.name).toBe('Demo')
   })
 
   it('filters open and unanswered threads', () => {
-    const entries = document.threads.map((thread) => buildDashboardEntry(space, document, thread))
+    const entries = document.threads.map((thread) => buildDashboardEntry(space, thread, target))
     const filtered = filterDashboardEntries(entries, {
       status: 'open',
       answered: 'unanswered'
@@ -158,9 +176,45 @@ describe('comments dashboard api helpers', () => {
     expect(filtered.map((entry) => entry.thread.id)).toEqual(['thread-open-unanswered'])
   })
 
+  it('filters by resource type and tag from opencloud metadata', () => {
+    const entries = [
+      buildDashboardEntry(space, document.threads[0], target),
+      buildDashboardEntry(
+        space,
+        document.threads[0],
+        {
+          ...target,
+          id: 'folder-1',
+          name: 'Specs',
+          path: '/Specs',
+          isFolder: true,
+          resourceType: 'folder',
+          mimeType: undefined,
+          tags: []
+        }
+      ),
+      buildDashboardEntry(
+        space,
+        document.threads[0],
+        {
+          id: 'space-root',
+          name: 'Marketing',
+          path: '/',
+          isFolder: true,
+          resourceType: 'space',
+          tags: []
+        }
+      )
+    ]
+
+    expect(filterDashboardEntries(entries, { type: 'folder' })).toHaveLength(1)
+    expect(filterDashboardEntries(entries, { type: 'space' })).toHaveLength(1)
+    expect(filterDashboardEntries(entries, { tag: 'review' })).toHaveLength(1)
+  })
+
   it('applies pagination after filtering and sorting', () => {
     const entries = document.threads.map((thread: CommentThread) =>
-      buildDashboardEntry(space, document, thread)
+      buildDashboardEntry(space, thread, target)
     )
     const result = queryDashboardEntries(entries, {
       status: 'open',

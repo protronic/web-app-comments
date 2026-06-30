@@ -7,7 +7,7 @@ import {
   CommentsDashboardResult
 } from '../types'
 import { buildDashboardEntries, queryDashboardEntries } from '../utils/dashboard'
-import { CommentDocumentRef, resolveCommentDocumentTargets } from '../utils/resolveTarget'
+import { CommentDocumentRef, mapFallbackTargetSummary, resolveCommentDocumentTargets } from '../utils/resolveTarget'
 import { COMMENTS_FOLDER_NAME } from '../utils/target'
 
 export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
@@ -25,12 +25,11 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
         const resolvedTargets = await resolveCommentDocumentTargets(this.webdav, space, refs)
 
         for (const ref of refs) {
-          const resolvedDocument: CommentDocument = {
-            ...ref.document,
-            target: resolvedTargets.get(ref.document.target.id) || ref.document.target
-          }
+          const target =
+            resolvedTargets.get(ref.document.target.id) ||
+            mapFallbackTargetSummary(ref.document.target, space)
 
-          entries.push(...buildDashboardEntries(space, resolvedDocument))
+          entries.push(...buildDashboardEntries(space, ref.document, target))
         }
       } catch {
         // Skip spaces that cannot be scanned instead of failing the whole dashboard.

@@ -1,5 +1,5 @@
 import { Resource, SpaceResource, urlJoin } from '@opencloud-eu/web-client'
-import { CommentTarget } from '../types'
+import { CommentDocument, CommentTarget } from '../types'
 
 export function isSpaceResource(item: unknown): item is SpaceResource {
   return !!item && typeof item === 'object' && 'driveType' in item

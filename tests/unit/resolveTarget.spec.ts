@@ -1,3 +1,4 @@
+import { beforeEach, vi } from 'vitest'
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { mock } from 'vitest-mock-extended'
@@ -10,6 +11,10 @@ import {
 describe('resolve comment dashboard targets', () => {
   const space = mock<SpaceResource>()
   const webdav = mock<WebDAV>()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   const document: CommentDocument = {
     version: 1,
@@ -28,6 +33,9 @@ describe('resolve comment dashboard targets', () => {
         fileId: 'file-1',
         name: 'New name.md',
         path: '/projects/new-name.md',
+        type: 'file',
+        mimeType: 'text/markdown',
+        tags: ['draft'],
         isFolder: false
       })
     )
@@ -36,16 +44,24 @@ describe('resolve comment dashboard targets', () => {
       id: 'file-1',
       name: 'New name.md',
       path: '/projects/new-name.md',
-      isFolder: false
+      isFolder: false,
+      resourceType: 'file',
+      mimeType: 'text/markdown',
+      tags: ['draft']
     })
   })
 
   it('falls back to the sidecar snapshot when lookup fails', async () => {
     webdav.getFileInfo.mockRejectedValue(new Error('not found'))
 
-    await expect(resolveCommentDocumentTarget(webdav, space, document)).resolves.toEqual(
-      document.target
-    )
+    await expect(resolveCommentDocumentTarget(webdav, space, document)).resolves.toEqual({
+      id: 'file-1',
+      name: 'Old name.md',
+      path: '/projects/old-name.md',
+      isFolder: false,
+      resourceType: 'file',
+      tags: []
+    })
   })
 
   it('deduplicates target lookups per document set', async () => {
@@ -54,6 +70,7 @@ describe('resolve comment dashboard targets', () => {
         fileId: 'file-1',
         name: 'Renamed folder',
         path: '/renamed-folder',
+        type: 'folder',
         isFolder: true
       })
     )
@@ -65,6 +82,7 @@ describe('resolve comment dashboard targets', () => {
 
     expect(webdav.getFileInfo).toHaveBeenCalledTimes(1)
     expect(resolved.get('file-1')?.name).toBe('Renamed folder')
+    expect(resolved.get('file-1')?.resourceType).toBe('folder')
   })
 
   it('resolves renamed folders from the sidecar container path', async () => {
@@ -80,15 +98,16 @@ describe('resolve comment dashboard targets', () => {
     }
 
     webdav.getFileInfo.mockImplementation(async (_space, resource) => {
-      if (resource?.fileId === 'folder-1') {
+      if (resource && 'fileId' in resource && resource.fileId === 'folder-1') {
         throw new Error('not found')
       }
 
-      if (resource?.path === '/Renamed folder') {
+      if (resource && 'path' in resource && resource.path === '/Renamed folder') {
         return mock<Resource>({
           fileId: 'folder-1',
           name: 'Renamed folder',
           path: '/Renamed folder',
+          type: 'folder',
           isFolder: true
         })
       }
@@ -102,8 +121,48 @@ describe('resolve comment dashboard targets', () => {
       id: 'folder-1',
       name: 'Renamed folder',
       path: '/Renamed folder',
-      isFolder: true
+      isFolder: true,
+      resourceType: 'folder',
+      tags: []
     })
+  })
+
+  it('resolves space-root comments from the space sidecar container', async () => {
+    const projectSpace = mock<SpaceResource>({
+      id: 'space-root$id',
+      name: 'Project space',
+      driveAlias: 'project/project-space',
+      driveType: 'project'
+    })
+
+    const spaceDocument: CommentDocument = {
+      version: 1,
+      target: {
+        id: 'space-root$id',
+        name: 'Old space name',
+        path: '/',
+        isFolder: true
+      },
+      threads: []
+    }
+
+    await expect(
+      resolveCommentDocumentTarget(
+        webdav,
+        projectSpace,
+        spaceDocument,
+        '/.conflu/comments/space-root_id.json'
+      )
+    ).resolves.toEqual({
+      id: 'space-root$id',
+      name: 'Project space',
+      path: '/',
+      isFolder: true,
+      resourceType: 'space',
+      tags: []
+    })
+
+    expect(webdav.getFileInfo).not.toHaveBeenCalled()
   })
 
   it('ignores misleading fileId lookups that point folders to the space root', async () => {
@@ -124,6 +183,7 @@ describe('resolve comment dashboard targets', () => {
           fileId: 'folder-1',
           name: 'Testordner',
           path: '/Testordner',
+          type: 'folder',
           isFolder: true
         })
       }
@@ -133,6 +193,7 @@ describe('resolve comment dashboard targets', () => {
           fileId: 'folder-1',
           name: 'Testordner',
           path: '/',
+          type: 'folder',
           isFolder: true
         })
       }
@@ -151,7 +212,9 @@ describe('resolve comment dashboard targets', () => {
       id: 'folder-1',
       name: 'Testordner',
       path: '/Testordner',
-      isFolder: true
+      isFolder: true,
+      resourceType: 'folder',
+      tags: []
     })
   })
 })
