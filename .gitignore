@@ -18,3 +18,6 @@ dist
 # dev setup
 /dev/docker/traefik/certificates
 docker-compose.override.yml
+
+# module federation temp files
+.__mf__temp/
