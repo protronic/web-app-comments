@@ -1,32 +1,195 @@
-# web-app-comments
+# Comments for OpenCloud
 
-OpenCloud Web extension for file and document comments. Adds a sidebar panel in the Files app for discussing selected files and folders.
+OpenCloud web extension for discussing files, folders, and spaces. Adds a **sidebar panel** in the Files app and a **comment dashboard** that aggregates threads across all spaces.
 
-Comments are stored in WebDAV sidecar files (`.conflu/comments/`) so they work without a native comments API. See [docs/](docs/) for the storage model and planned native API.
+Comments are stored as WebDAV sidecar files under `.conflu/comments/` — no native comments API required. The storage layer is abstracted so a future backend can replace it without rewriting the UI.
+
+| | |
+|---|---|
+| **App ID** | `comments` |
+| **License** | AGPL-3.0 |
+| **OpenCloud** | 7.x (extension-sdk 7.1.2) |
+| **Languages** | English, German |
+
+## Screenshots
+
+### Comment dashboard
+
+Filter threads by status, replies, resource type, and tags across all spaces.
+
+![Comment dashboard](docs/Dashboard.png)
+
+### Sidebar panel
+
+Discuss a selected file or folder directly from the Files app sidebar.
+
+![Comments sidebar panel](docs/Sidebar.png)
+
+## Features
+
+### Sidebar panel
+
+- Comment on a selected file or folder from the Files app sidebar
+- Markdown support for comment bodies
+- Thread replies, edit, soft-delete, resolve / reopen
+- Live refresh via SSE when sidecar files change
+
+### Comment dashboard
+
+Route: `/comments/dashboard` (app menu entry)
+
+Aggregates all comment threads the current user can access and supports filtering by:
+
+| Filter | Values | Default |
+|--------|--------|---------|
+| Status | all, open, resolved | open |
+| Replies | all, answered, unanswered | answered |
+| Type | all, file, folder, space | all |
+| Tag | all, tag name | all |
+
+Each entry shows thread preview, target metadata (refreshed from WebDAV), reply count, and a shortcut to open the resource in Files.
+
+### Internationalization
+
+UI strings are centralized in `src/i18n/messages.ts` and translated in `l10n/translations.json`. Components use `useCommentGettext()` so translations are registered even when the extension loads lazily (e.g. sidebar panel).
+
+To add or change a string:
+
+1. Add the English msgid to `commentMessages` in `src/i18n/messages.ts`
+2. Add translations to `l10n/translations.json` (`de`, `en`, …)
+3. Use `$gettext(msg.yourKey)` in Vue/TS code
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph UI
+    Panel[CommentsPanel]
+    Dashboard[CommentsDashboard]
+  end
+
+  subgraph Composables
+    UC[useComments]
+    UD[useCommentsDashboard]
+  end
+
+  subgraph Storage
+    Sidecar[WebdavSidecarCommentStorage]
+    DashStore[WebdavSidecarDashboardStorage]
+  end
+
+  subgraph OpenCloud
+    WebDAV[(WebDAV .conflu/comments/*.json)]
+    SSE[SSE file touched]
+  end
+
+  Panel --> UC --> Sidecar --> WebDAV
+  Dashboard --> UD --> DashStore --> WebDAV
+  SSE --> UC
+```
+
+Sidecar layout:
+
+```
+{space}/{resource-path}/.conflu/comments/{fileId}.json
+```
+
+Each JSON document contains `threads[]` with `status`, `comments[]`, and a `target` snapshot. The dashboard resolves live names and paths from WebDAV on load.
+
+See [docs/](docs/) for the storage model, dashboard API, and planned native backend.
+
+## Project structure
+
+```
+src/
+├── index.ts                 # Extension entry, routes, sidebar registration
+├── components/              # Panel, thread, form
+├── views/CommentsDashboard.vue
+├── composables/             # useComments, useCommentsDashboard
+├── storage/                 # WebDAV sidecar adapters
+├── i18n/                    # messages, registration, useCommentGettext
+└── utils/                   # target resolution, dashboard helpers
+
+l10n/translations.json       # gettext catalog (de, en, …)
+docs/                        # API and design notes
+tests/unit/                  # Vitest unit tests
+tests/live/                  # Optional live WebDAV tests
+```
 
 ## Development
 
-Requires Docker, Docker Compose, and [pnpm](https://pnpm.io/installation).
+Requires [Docker](https://docs.docker.com/get-docker/), Docker Compose, and [pnpm](https://pnpm.io/installation).
 
 ```bash
-pnpm install && pnpm build:w
+pnpm install
+pnpm build:w          # watch build → dist/
 docker compose up
 ```
 
-Add to `/etc/hosts`: `127.0.0.1 test.oc`
+Add to `/etc/hosts`:
 
-Open `https://test.oc:9200` (user `admin` / `admin`).
+```
+127.0.0.1 test.oc
+```
 
-The **Comment dashboard** is available from the app menu at `/comments/dashboard`. It lists all comment threads across spaces and supports filters for open/resolved and answered/unanswered threads.
+Open **https://test.oc:9200** (demo user `admin` / `admin`).
 
-See [docs/dashboard-api.md](docs/dashboard-api.md) for the programmatic dashboard API.
+The compose stack mounts `./dist` into the OpenCloud container at `/web/apps/comments`.
 
-## curl examples
+## Build & deploy
 
-Comments are stored as JSON sidecar files under `{container}/.conflu/comments/{fileId}.json`.
-There is no dedicated HTTP comments API yet; these examples show the underlying WebDAV/Graph layer.
+```bash
+pnpm build
+```
 
-Local dev defaults:
+Output lands in `dist/`. Copy it to your OpenCloud web apps directory:
+
+```bash
+rsync -a dist/ /path/to/opencloud/apps/comments/
+```
+
+When using [opencloud-compose](https://github.com/protronic/opencloud-compose), the parent repo's `build-web-extensions.sh` handles build and deploy to `config/opencloud/apps/comments/`.
+
+Official reference: [OpenCloud web applications](https://docs.opencloud.eu/docs/admin/configuration/web-applications)
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `pnpm build` | Production build |
+| `pnpm build:w` | Development watch build |
+| `pnpm test:unit` | Unit tests (Vitest) |
+| `pnpm check:types` | TypeScript check |
+| `pnpm lint` | ESLint |
+| `pnpm format:write` | Prettier |
+
+## Tests
+
+```bash
+pnpm test:unit
+```
+
+Live WebDAV tests (optional, need a running OpenCloud instance) live under `tests/live/`.
+
+## Dashboard API
+
+For programmatic access to aggregated threads, see [docs/dashboard-api.md](docs/dashboard-api.md).
+
+```ts
+import { WebdavSidecarDashboardStorage } from './storage/WebdavSidecarDashboardStorage'
+
+const api = new WebdavSidecarDashboardStorage(webdav)
+const { entries, total } = await api.listThreads(spaces, {
+  status: 'open',
+  answered: 'unanswered',
+  type: 'folder',
+  limit: 50
+})
+```
+
+## WebDAV examples
+
+There is no dedicated HTTP comments API yet. These examples show the underlying storage layer.
 
 ```bash
 export OC_HOST='https://test.oc:9200'
@@ -35,7 +198,7 @@ export OC_PASS='admin'
 export OC_RESOLVE='--resolve test.oc:9200:127.0.0.1'
 ```
 
-### List drives and get the space id
+**List drives**
 
 ```bash
 curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
@@ -43,17 +206,7 @@ curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
   | jq '.value[] | {name, driveAlias, id, webDavUrl: .root.webDavUrl}'
 ```
 
-Example space id for the personal drive:
-
-```bash
-export SPACE_ID='3aa12485-865e-4ad4-8adc-39eab0fb6aee$4c96551e-ff46-46e9-9571-10af0ffaf62c'
-```
-
-### List comment sidecar files in a folder
-
-Sidecars live next to the commented file or folder, for example:
-
-`/Testordner/.conflu/comments/*.json`
+**List sidecars in a folder**
 
 ```bash
 curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
@@ -62,18 +215,15 @@ curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
   -H 'Depth: 1'
 ```
 
-### Read one sidecar document
+**Read one sidecar**
 
 ```bash
-export SIDECAR='3aa12485-865e-4ad4-8adc-39eab0fb6aee_4c96551e-ff46-46e9-9571-10af0ffaf62c_8af7a404-6220-4a1e-8fa7-653f16f82343.json'
-
 curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
   "${OC_HOST}/dav/spaces/${SPACE_ID}/Testordner/.conflu/comments/${SIDECAR}" \
   | jq .
 ```
 
-The JSON contains `threads[]` with `status`, `comments[]`, and a `target` snapshot.
-Filter ideas for scripts:
+**Filter with jq**
 
 ```bash
 # open threads only
@@ -81,56 +231,14 @@ jq '.threads[] | select(.status == "open")'
 
 # threads with at least one reply
 jq '.threads[] | select([.comments[] | select(.deletedAt == null)] | length > 1)'
-
-# last reply in a thread
-jq '.threads[] | {
-  threadId: .id,
-  lastReply: ([.comments[] | select(.deletedAt == null)] | last)
-}'
 ```
 
-### Resolve the current file or folder name after a rename
+## Roadmap
 
-The sidecar snapshot can contain an old `target.name` / `target.path`.
-Ask WebDAV for the live resource instead:
+- Native OpenCloud comments API (see [docs/native-comments-api.md](docs/native-comments-api.md))
+- Additional languages beyond EN/DE
+- Matrix-backed chat integration (design draft in [docs/](docs/))
 
-```bash
-curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
-  -X PROPFIND \
-  "${OC_HOST}/dav/spaces/${SPACE_ID}/Testordner/Testfiel.txt" \
-  -H 'Depth: 0'
-```
+## License
 
-The dashboard uses the same idea: it refreshes target metadata from WebDAV on load.
-
-### Write a sidecar manually
-
-```bash
-curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
-  -X PUT \
-  "${OC_HOST}/dav/spaces/${SPACE_ID}/handbook/.conflu/comments/file_1_2.json" \
-  -H 'Content-Type: application/json' \
-  --data-binary @comment-sidecar.json
-```
-
-Create the folders first if needed:
-
-```bash
-curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
-  -X MKCOL \
-  "${OC_HOST}/dav/spaces/${SPACE_ID}/handbook/.conflu/comments/"
-```
-
-## Build
-
-```bash
-pnpm build
-```
-
-Production output is in `dist/`. Deploy to OpenCloud's web apps directory (see [web applications docs](https://docs.opencloud.eu/docs/admin/configuration/web-applications)).
-
-## Tests
-
-```bash
-pnpm test:unit
-```
+AGPL-3.0 — see [LICENSE](LICENSE).
