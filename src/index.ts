@@ -1,63 +1,65 @@
+import '@opencloud-eu/extension-sdk/tailwind.css'
+import translations from '../l10n/translations.json'
 import {
   defineWebApplication,
-  ApplicationSetupOptions,
   Extension,
-  AppMenuItemExtension
+  SidebarPanelExtension,
+  useUserStore
 } from '@opencloud-eu/web-pkg'
-import { urlJoin } from '@opencloud-eu/web-client'
-import '@opencloud-eu/extension-sdk/tailwind.css'
-import { RouteRecordRaw } from 'vue-router'
+import { Resource } from '@opencloud-eu/web-client'
 import { computed } from 'vue'
 import { useGettext } from 'vue3-gettext'
+import CommentsPanel from './components/CommentsPanel.vue'
+
+const applicationId = 'comments'
 
 export default defineWebApplication({
-  setup(args) {
+  setup() {
     const { $gettext } = useGettext()
-
-    const appInfo = {
-      id: 'skeleton',
-      name: $gettext('Skeleton'),
-      icon: 'cup',
-      color: '#622a0f'
-    }
-
-    const routes: RouteRecordRaw[] = [
-      {
-        path: '/',
-        redirect: `/${appInfo.id}/hello`
-      },
-      {
-        path: '/hello',
-        name: 'hello',
-        component: () => import('./views/Hello.vue'),
-        meta: {
-          authContext: 'user',
-          title: $gettext('Hello')
-        }
-      }
-    ]
-
-    const extensions = ({ applicationConfig }: ApplicationSetupOptions) => {
-      return computed<Extension[]>(() => {
-        const menuItems: AppMenuItemExtension[] = [
-          {
-            // registers a menu item for the app switcher
-            id: `app.${appInfo.id}.menuItem`,
-            type: 'appMenuItem',
-            label: () => appInfo.name,
-            color: appInfo.color,
-            icon: appInfo.icon,
-            path: urlJoin(appInfo.id)
-          }
-        ]
-        return [...menuItems]
-      })
-    }
+    const extensions = useExtensions()
 
     return {
-      appInfo,
-      routes,
-      extensions: extensions(args)
+      appInfo: {
+        name: $gettext('Comments'),
+        id: applicationId,
+        icon: 'chat',
+        iconFillType: 'line'
+      },
+      translations,
+      extensions
     }
   }
 })
+
+export function useExtensions() {
+  const { $gettext } = useGettext()
+  const userStore = useUserStore()
+
+  return computed<Extension[]>(() => {
+    if (!userStore.user) return []
+
+    return [
+      {
+        id: 'com.github.opencloud-eu.web-extensions.comments.sidebar-panel',
+        type: 'sidebarPanel',
+        extensionPointIds: ['global.files.sidebar'],
+        panel: {
+          name: 'comments',
+          icon: 'chat',
+          iconFillType: 'line',
+          title: () => $gettext('Comments'),
+          component: CommentsPanel,
+          componentAttrs: (panelContext) => {
+            return {
+              panelContext
+            }
+          },
+          isRoot: () => true,
+          isVisible: ({ items }) => {
+            return items?.length === 1
+          }
+        }
+      } as SidebarPanelExtension<Resource, Resource, Resource>
+    ]
+  })
+}

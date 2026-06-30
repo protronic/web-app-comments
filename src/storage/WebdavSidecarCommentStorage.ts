@@ -1,0 +1,207 @@
+import type { WebDAV } from '@opencloud-eu/web-client/webdav'
+import {
+  CommentAuthor,
+  CommentDocument,
+  CommentStorage,
+  CommentTarget,
+  CommentThread,
+  CreateCommentInput,
+  UpdateCommentInput
+} from '../types'
+import {
+  createCommentMessage,
+  createCommentThread,
+  createDeletedCommentPlaceholder,
+  createEmptyCommentDocument,
+  sortThreads,
+  touchThread
+} from '../utils/comments'
+import { getCommentDirectoryPath, getCommentDocumentPath } from '../utils/target'
+
+export class WebdavSidecarCommentStorage implements CommentStorage {
+  public constructor(private readonly webdav: WebDAV) {}
+
+  public async list(target: CommentTarget): Promise<CommentThread[]> {
+    const document = await this.loadDocument(target)
+    return sortThreads(document.threads)
+  }
+
+  public async createThread(
+    target: CommentTarget,
+    input: CreateCommentInput
+  ): Promise<CommentThread> {
+    const document = await this.loadDocument(target)
+    const now = new Date().toISOString()
+    const comment = createCommentMessage({ ...input, now })
+    const thread = createCommentThread(target, comment, now)
+
+    document.threads.push(thread)
+    await this.saveDocument(target, document)
+
+    return thread
+  }
+
+  public async replyToThread(
+    target: CommentTarget,
+    threadId: string,
+    input: CreateCommentInput
+  ): Promise<CommentThread> {
+    const document = await this.loadDocument(target)
+    const thread = findThread(document, threadId)
+    const now = new Date().toISOString()
+
+    thread.comments.push(createCommentMessage({ ...input, now }))
+    touchThread(thread, now)
+    await this.saveDocument(target, document)
+
+    return thread
+  }
+
+  public async updateComment(
+    target: CommentTarget,
+    threadId: string,
+    commentId: string,
+    input: UpdateCommentInput
+  ): Promise<CommentThread> {
+    const document = await this.loadDocument(target)
+    const thread = findThread(document, threadId)
+    const comment = findComment(thread, commentId)
+    const now = new Date().toISOString()
+
+    comment.body = input.body
+    comment.format = input.format || comment.format
+    comment.updatedAt = now
+    touchThread(thread, now)
+    await this.saveDocument(target, document)
+
+    return thread
+  }
+
+  public async deleteComment(
+    target: CommentTarget,
+    threadId: string,
+    commentId: string,
+    actor: CommentAuthor
+  ): Promise<CommentThread> {
+    const document = await this.loadDocument(target)
+    const thread = findThread(document, threadId)
+    const index = thread.comments.findIndex((comment) => comment.id === commentId)
+
+    if (index < 0) {
+      throw new Error(`Comment "${commentId}" was not found.`)
+    }
+
+    const now = new Date().toISOString()
+    thread.comments[index] = createDeletedCommentPlaceholder(thread.comments[index], actor, now)
+    touchThread(thread, now)
+    await this.saveDocument(target, document)
+
+    return thread
+  }
+
+  public async setThreadResolved(
+    target: CommentTarget,
+    threadId: string,
+    resolved: boolean,
+    actor: CommentAuthor
+  ): Promise<CommentThread> {
+    const document = await this.loadDocument(target)
+    const thread = findThread(document, threadId)
+    const now = new Date().toISOString()
+
+    thread.status = resolved ? 'resolved' : 'open'
+    thread.resolvedAt = resolved ? now : undefined
+    thread.resolvedBy = resolved ? actor : undefined
+    touchThread(thread, now)
+    await this.saveDocument(target, document)
+
+    return thread
+  }
+
+  private async loadDocument(target: CommentTarget): Promise<CommentDocument> {
+    try {
+      const response = await this.webdav.getFileContents(target.space, {
+        path: getCommentDocumentPath(target)
+      })
+      return normalizeCommentDocument(target, JSON.parse(response.body))
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return createEmptyCommentDocument(target)
+      }
+
+      throw error
+    }
+  }
+
+  private async saveDocument(target: CommentTarget, document: CommentDocument): Promise<void> {
+    await this.ensureCommentDirectory(target)
+    await this.webdav.putFileContents(target.space, {
+      path: getCommentDocumentPath(target),
+      content: JSON.stringify(document, null, 2)
+    })
+  }
+
+  private async ensureCommentDirectory(target: CommentTarget): Promise<void> {
+    const confluPath = getCommentDirectoryPath(target).replace(/\/comments$/, '')
+
+    for (const path of [confluPath, getCommentDirectoryPath(target)]) {
+      try {
+        await this.webdav.createFolder(target.space, { path })
+      } catch {
+        // The folder may already exist. Permission errors surface when writing the sidecar file.
+      }
+    }
+  }
+}
+
+function normalizeCommentDocument(target: CommentTarget, value: unknown): CommentDocument {
+  const document = value as Partial<CommentDocument>
+
+  if (!document || document.version !== 1 || !Array.isArray(document.threads)) {
+    return createEmptyCommentDocument(target)
+  }
+
+  return {
+    version: 1,
+    target: {
+      id: document.target?.id || target.id,
+      name: document.target?.name || target.name,
+      path: document.target?.path || target.path,
+      isFolder: document.target?.isFolder ?? target.isFolder
+    },
+    threads: document.threads
+  }
+}
+
+function findThread(document: CommentDocument, threadId: string): CommentThread {
+  const thread = document.threads.find((thread) => thread.id === threadId)
+
+  if (!thread) {
+    throw new Error(`Thread "${threadId}" was not found.`)
+  }
+
+  return thread
+}
+
+function findComment(thread: CommentThread, commentId: string) {
+  const comment = thread.comments.find((comment) => comment.id === commentId)
+
+  if (!comment) {
+    throw new Error(`Comment "${commentId}" was not found.`)
+  }
+
+  return comment
+}
+
+function isNotFoundError(error: unknown): boolean {
+  const responseStatus = (
+    error as { status?: number; statusCode?: number; response?: { status?: number } }
+  )?.response?.status
+  const statusCode =
+    responseStatus ||
+    (error as { status?: number; statusCode?: number })?.status ||
+    (error as { status?: number; statusCode?: number })?.statusCode
+  const message = (error as Error)?.message || ''
+
+  return statusCode === 404 || message.includes('404') || message.includes('Not Found')
+}
