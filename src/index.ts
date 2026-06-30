@@ -1,13 +1,14 @@
 import '@opencloud-eu/extension-sdk/tailwind.css'
 import translations from '../l10n/translations.json'
 import {
+  AppMenuItemExtension,
   defineWebApplication,
   Extension,
   SidebarPanelExtension,
   useUserStore
 } from '@opencloud-eu/web-pkg'
-import { Resource, SpaceResource } from '@opencloud-eu/web-client'
-import { computed, markRaw } from 'vue'
+import { Resource, SpaceResource, urlJoin } from '@opencloud-eu/web-client'
+import { computed, markRaw, unref } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import CommentsPanel from './components/CommentsPanel.vue'
 
@@ -16,7 +17,43 @@ const applicationId = 'comments'
 export default defineWebApplication({
   setup() {
     const { $gettext } = useGettext()
-    const extensions = useExtensions()
+    const userStore = useUserStore()
+    const sidebarExtensions = useExtensions()
+
+    const routes = [
+      {
+        path: '/dashboard',
+        name: `${applicationId}-dashboard`,
+        component: () => import('./views/CommentsDashboard.vue'),
+        meta: {
+          authContext: 'user',
+          title: $gettext('Comment dashboard'),
+          patchCleanPath: true
+        }
+      }
+    ]
+
+    const menuItems = computed<AppMenuItemExtension[]>(() => {
+      if (!userStore.user) {
+        return []
+      }
+
+      return [
+        {
+          id: `app.${applicationId}.dashboard.menuItem`,
+          type: 'appMenuItem',
+          label: () => $gettext('Comment dashboard'),
+          icon: 'chat-1',
+          path: urlJoin(applicationId, 'dashboard'),
+          color: 'white'
+        }
+      ]
+    })
+
+    const extensions = computed<Extension[]>(() => [
+      ...unref(sidebarExtensions),
+      ...unref(menuItems)
+    ])
 
     return {
       appInfo: {
@@ -26,6 +63,7 @@ export default defineWebApplication({
         iconFillType: 'line'
       },
       translations,
+      routes,
       extensions
     }
   }

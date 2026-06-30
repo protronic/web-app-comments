@@ -86,9 +86,40 @@ export function getThreadTitleLine(thread: CommentThread): string | undefined {
     return undefined
   }
 
-  const firstLine = firstComment.body.split(/\r?\n/, 1)[0]?.trim()
+  return getCommentPreviewLine(firstComment.body)
+}
 
-  return firstLine || undefined
+export function getCommentPreviewLine(body: string, maxLength = 160): string {
+  const firstLine = body.split(/\r?\n/, 1)[0]?.trim() ?? ''
+  const plainText = stripMarkdownForPreview(firstLine).trim()
+
+  if (!plainText) {
+    return ''
+  }
+
+  if (plainText.length <= maxLength) {
+    return plainText
+  }
+
+  return `${plainText.slice(0, maxLength - 1).trimEnd()}…`
+}
+
+export function getLastReplyComment(thread: CommentThread): CommentMessage | undefined {
+  const activeComments = thread.comments.filter((comment) => !comment.deletedAt)
+
+  if (activeComments.length <= 1) {
+    return undefined
+  }
+
+  return activeComments[activeComments.length - 1]
+}
+
+function stripMarkdownForPreview(value: string): string {
+  return value
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
 }
 
 function createId(prefix: string): string {

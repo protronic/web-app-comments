@@ -63,6 +63,52 @@ export interface UpdateCommentInput {
   author: CommentAuthor
 }
 
+export type DashboardStatusFilter = 'all' | 'open' | 'resolved'
+export type DashboardAnsweredFilter = 'all' | 'answered' | 'unanswered'
+
+export interface CommentsDashboardQuery {
+  status?: DashboardStatusFilter
+  answered?: DashboardAnsweredFilter
+  spaceId?: string
+  limit?: number
+  offset?: number
+}
+
+export interface DashboardSpaceSummary {
+  id: string
+  name: string
+  driveAlias: string
+  driveType?: string
+}
+
+export interface DashboardLastReply {
+  author: CommentAuthor
+  body: string
+  preview: string
+  createdAt: string
+}
+
+export interface DashboardThreadEntry {
+  thread: CommentThread
+  target: CommentDocument['target']
+  space: DashboardSpaceSummary
+  replyCount: number
+  isAnswered: boolean
+  lastReply?: DashboardLastReply
+}
+
+export interface CommentsDashboardResult {
+  entries: DashboardThreadEntry[]
+  total: number
+}
+
+export interface CommentsDashboardApi {
+  listThreads(
+    spaces: SpaceResource[],
+    query?: CommentsDashboardQuery
+  ): Promise<CommentsDashboardResult>
+}
+
 export interface CommentStorage {
   list(target: CommentTarget): Promise<CommentThread[]>
   createThread(target: CommentTarget, input: CreateCommentInput): Promise<CommentThread>

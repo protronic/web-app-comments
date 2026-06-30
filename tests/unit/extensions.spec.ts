@@ -8,11 +8,9 @@ import { useExtensions } from '../../src'
 describe('comments app', () => {
   it('registers one sidebar panel for a single selected resource', () => {
     getWrapper((extensions) => {
-      const extension = unref(extensions)[0] as SidebarPanelExtension<
-        SpaceResource,
-        Resource,
-        Resource
-      >
+      const extension = unref(extensions).find(
+        (item) => item.type === 'sidebarPanel'
+      ) as SidebarPanelExtension<SpaceResource, Resource, Resource>
       const resource = mock<Resource>()
 
       expect(extension.type).toBe('sidebarPanel')
@@ -25,11 +23,9 @@ describe('comments app', () => {
 
   it('does not show the sidebar panel for multiple resources', () => {
     getWrapper((extensions) => {
-      const extension = unref(extensions)[0] as SidebarPanelExtension<
-        SpaceResource,
-        Resource,
-        Resource
-      >
+      const extension = unref(extensions).find(
+        (item) => item.type === 'sidebarPanel'
+      ) as SidebarPanelExtension<SpaceResource, Resource, Resource>
 
       expect(extension.panel.isVisible({ items: [mock<Resource>(), mock<Resource>()] })).toBeFalsy()
     })

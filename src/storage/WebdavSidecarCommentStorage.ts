@@ -16,7 +16,7 @@ import {
   sortThreads,
   touchThread
 } from '../utils/comments'
-import { getCommentDirectoryPath, getCommentDocumentPath } from '../utils/target'
+import { getCommentDirectoryPath, getCommentDocumentPath, syncCommentDocumentTarget } from '../utils/target'
 
 export class WebdavSidecarCommentStorage implements CommentStorage {
   public constructor(private readonly webdav: WebDAV) {}
@@ -134,10 +134,12 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
   }
 
   private async saveDocument(target: CommentTarget, document: CommentDocument): Promise<void> {
+    const payload = syncCommentDocumentTarget(target, document)
+
     await this.ensureCommentDirectory(target)
     await this.webdav.putFileContents(target.space, {
       path: getCommentDocumentPath(target),
-      content: JSON.stringify(document, null, 2)
+      content: JSON.stringify(payload, null, 2)
     })
   }
 
@@ -164,10 +166,10 @@ function normalizeCommentDocument(target: CommentTarget, value: unknown): Commen
   return {
     version: 1,
     target: {
-      id: document.target?.id || target.id,
-      name: document.target?.name || target.name,
-      path: document.target?.path || target.path,
-      isFolder: document.target?.isFolder ?? target.isFolder
+      id: target.id,
+      name: target.name,
+      path: target.path,
+      isFolder: target.isFolder
     },
     threads: document.threads
   }

@@ -83,3 +83,31 @@ export function toSafeFileName(value: string): string {
   const safeName = value.replace(/[^a-zA-Z0-9._-]/g, '_')
   return safeName || 'unknown'
 }
+
+export function getSidecarContainerPath(sidecarPath: string): string | undefined {
+  const marker = '/.conflu/comments/'
+  const index = sidecarPath.indexOf(marker)
+
+  if (index < 0) {
+    return undefined
+  }
+
+  const containerPath = sidecarPath.slice(0, index)
+
+  return containerPath || '/'
+}
+
+export function syncCommentDocumentTarget(
+  target: CommentTarget,
+  document: CommentDocument
+): CommentDocument {
+  return {
+    ...document,
+    target: {
+      id: target.id,
+      name: target.name,
+      path: target.path,
+      isFolder: target.isFolder
+    }
+  }
+}

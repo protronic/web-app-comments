@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, unref } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import { getThreadTitleLine } from '../utils/comments'
 import { CommentMessage, CommentThread } from '../types'
@@ -157,7 +157,7 @@ function toggleResolved() {
 }
 
 function formattedDate(value: string): string {
-  return new Intl.DateTimeFormat(currentLanguage, {
+  return new Intl.DateTimeFormat(unref(currentLanguage), {
     dateStyle: 'medium',
     timeStyle: 'short'
   }).format(new Date(value))

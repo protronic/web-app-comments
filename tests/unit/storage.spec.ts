@@ -110,4 +110,50 @@ describe('webdav sidecar comments', () => {
     expect(thread.comments[0].body).toBe('')
     expect(thread.comments[0].deletedAt).toBe('2026-06-28T12:00:00.000Z')
   })
+
+  it('writes the current target name and path into the sidecar on save', async () => {
+    const webdav = mock<WebDAV>()
+    const target = createCommentTarget(
+      space,
+      mock<Resource>({
+        fileId: 'file-1',
+        name: 'Renamed.txt',
+        path: '/docs/Renamed.txt',
+        isFolder: false
+      })
+    )
+    const storage = new WebdavSidecarCommentStorage(webdav)
+
+    webdav.getFileContents.mockResolvedValue({
+      body: JSON.stringify({
+        version: 1,
+        target: {
+          id: target.id,
+          name: 'Old.txt',
+          path: '/docs/Old.txt',
+          isFolder: false
+        },
+        threads: []
+      })
+    } as never)
+
+    await storage.createThread(target, {
+      body: 'Updated sidecar metadata',
+      format: 'markdown',
+      author: { id: 'marie', displayName: 'Marie' }
+    })
+
+    expect(webdav.putFileContents).toHaveBeenCalledWith(
+      space,
+      expect.objectContaining({
+        content: expect.stringContaining('"name": "Renamed.txt"')
+      })
+    )
+    expect(webdav.putFileContents).toHaveBeenCalledWith(
+      space,
+      expect.objectContaining({
+        content: expect.stringContaining('"path": "/docs/Renamed.txt"')
+      })
+    )
+  })
 })
