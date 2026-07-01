@@ -85,6 +85,8 @@ export interface DashboardTargetSummary {
   isFolder: boolean
   resourceType: DashboardResourceType
   mimeType?: string
+  fileId?: string
+  privateLink?: string
   tags: string[]
 }
 

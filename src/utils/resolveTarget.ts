@@ -2,6 +2,7 @@ import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { CommentDocument, DashboardTargetSummary } from '../types'
 import { getSidecarContainerPath, getStableResourceId } from './target'
+import { isGraphResourceId } from './commentTags'
 
 export interface CommentDocumentRef {
   document: CommentDocument
@@ -128,6 +129,8 @@ function mapSpaceRootTargetSummary(
     path: '/',
     isFolder: true,
     resourceType: 'space',
+    fileId: typeof space.fileId === 'string' ? space.fileId : space.id,
+    privateLink: typeof space.privateLink === 'string' ? space.privateLink : undefined,
     tags: []
   }
 }
@@ -160,6 +163,8 @@ function mapResourceToTargetSummary(
     isFolder,
     resourceType: getResourceTypeFromResource(resource, isFolder),
     mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : undefined,
+    fileId: getGraphFileId(resource),
+    privateLink: typeof resource.privateLink === 'string' ? resource.privateLink : undefined,
     tags: Array.isArray(resource.tags) ? [...resource.tags] : []
   }
 
@@ -196,6 +201,12 @@ function applySpaceRootMetadata(
     isFolder: true,
     path: '/'
   }
+}
+
+function getGraphFileId(resource: Resource): string | undefined {
+  const candidate = resource.fileId || resource.id
+
+  return isGraphResourceId(candidate) ? candidate : undefined
 }
 
 function getResourceTypeFromResource(

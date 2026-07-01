@@ -1,5 +1,6 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
+import type { Graph } from '@opencloud-eu/web-client/graph'
 import {
   CommentDocument,
   CommentsDashboardApi,
@@ -10,11 +11,15 @@ import { COMMENT_TAG } from '../constants/tags'
 import { buildTagSearchPattern } from '../utils/commentTags'
 import { buildDashboardEntries, queryDashboardEntries } from '../utils/dashboard'
 import { findSpaceForSearchResource } from '../utils/dashboardSearch'
+import { enrichTargetLinkFromGraph } from '../utils/graphTargetLinks'
 import { resolveCommentDocumentTarget } from '../utils/resolveTarget'
 import { createCommentTarget, getCommentDocumentPath } from '../utils/target'
 
 export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
-  public constructor(private readonly webdav: WebDAV) {}
+  public constructor(
+    private readonly webdav: WebDAV,
+    private readonly graph?: Graph
+  ) {}
 
   public async listThreads(
     spaces: SpaceResource[],
@@ -53,11 +58,10 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
           continue
         }
 
-        const resolvedTarget = await resolveCommentDocumentTarget(
-          this.webdav,
+        const resolvedTarget = await enrichTargetLinkFromGraph(
+          this.graph?.driveItems,
           space,
-          document,
-          sidecarPath
+          await resolveCommentDocumentTarget(this.webdav, space, document, sidecarPath)
         )
 
         entries.push(...buildDashboardEntries(space, document, resolvedTarget))

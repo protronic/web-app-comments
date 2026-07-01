@@ -13,7 +13,10 @@ export function useCommentsDashboard() {
   const clientService = useClientService()
   const spacesStore = useSpacesStore()
   const userStore = useUserStore()
-  const api = new WebdavSidecarDashboardStorage(clientService.webdav)
+  const api = new WebdavSidecarDashboardStorage(
+    clientService.webdav,
+    clientService.graphAuthenticated
+  )
 
   const entries = ref<DashboardThreadEntry[]>([])
   const total = ref(0)

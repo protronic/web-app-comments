@@ -1,11 +1,13 @@
-import { mock } from 'vitest-mock-extended'
-import { SpaceResource } from '@opencloud-eu/web-client'
 import {
   buildOpenTargetLocation,
+  buildPrivateLinkLocation,
+  extractPrivateLinkFileId,
   getOpenTargetFileId,
   getOpenTargetPath
 } from '../../src/utils/dashboardNavigation'
 import { DashboardTargetSummary } from '../../src/types'
+import { mock } from 'vitest-mock-extended'
+import { SpaceResource } from '@opencloud-eu/web-client'
 
 describe('dashboard navigation helpers', () => {
   const space = mock<SpaceResource>({
@@ -15,9 +17,33 @@ describe('dashboard navigation helpers', () => {
     getDriveAliasAndItem: ({ path }) => `personal/admin${path ? `/${path.replace(/^\//, '')}` : ''}`
   })
 
-  it('adds fileId query when opening a file', () => {
+  it('prefers graph/web private links over path navigation', () => {
     const target: DashboardTargetSummary = {
       id: 'owner$space!file-1',
+      fileId: 'owner$space!file-1',
+      privateLink: 'https://test.oc:9200/f/owner%24space%21file-1',
+      name: 'Plan.md',
+      path: '/Projects/Plan.md',
+      isFolder: false,
+      resourceType: 'file',
+      tags: []
+    }
+
+    expect(extractPrivateLinkFileId(target.privateLink)).toBe('owner$space!file-1')
+    expect(buildPrivateLinkLocation(target.privateLink)).toEqual({
+      name: 'resolvePrivateLink',
+      params: { fileId: 'owner$space!file-1' }
+    })
+    expect(buildOpenTargetLocation(space, { space, target })).toEqual({
+      name: 'resolvePrivateLink',
+      params: { fileId: 'owner$space!file-1' }
+    })
+  })
+
+  it('adds fileId query when opening a file without private link', () => {
+    const target: DashboardTargetSummary = {
+      id: 'owner$space!file-1',
+      fileId: 'owner$space!file-1',
       name: 'Plan.md',
       path: '/Projects/Plan.md',
       isFolder: false,

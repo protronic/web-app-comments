@@ -69,9 +69,11 @@ describe('WebdavSidecarDashboardStorage', () => {
     webdav.getFileInfo.mockResolvedValue(
       mock({
         fileId: 'owner$space!file-1',
+        id: 'owner$space!file-1',
         name: 'Plan.md',
         path: '/Plan.md',
         isFolder: false,
+        privateLink: 'https://test.oc/f/owner%24space%21file-1',
         tags: [COMMENT_TAG]
       })
     )
@@ -85,6 +87,7 @@ describe('WebdavSidecarDashboardStorage', () => {
     expect(webdav.search).toHaveBeenCalledWith('tag:Kommentiert', { searchLimit: 5000 })
     expect(result.total).toBe(1)
     expect(result.entries[0]?.target.name).toBe('Plan.md')
+    expect(result.entries[0]?.target.privateLink).toBe('https://test.oc/f/owner%24space%21file-1')
     expect(result.entries[0]?.isAnswered).toBe(true)
   })
 })

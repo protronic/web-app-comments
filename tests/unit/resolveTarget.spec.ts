@@ -19,7 +19,7 @@ describe('resolve comment dashboard targets', () => {
   const document: CommentDocument = {
     version: 1,
     target: {
-      id: 'file-1',
+      id: 'owner$space!file-1',
       name: 'Old name.md',
       path: '/projects/old-name.md',
       isFolder: false
@@ -30,23 +30,27 @@ describe('resolve comment dashboard targets', () => {
   it('uses the current resource name and path from webdav', async () => {
     webdav.getFileInfo.mockResolvedValue(
       mock<Resource>({
-        fileId: 'file-1',
+        fileId: 'owner$space!file-1',
+        id: 'owner$space!file-1',
         name: 'New name.md',
         path: '/projects/new-name.md',
         type: 'file',
         mimeType: 'text/markdown',
+        privateLink: 'https://test.oc/f/owner%24space%21file-1',
         tags: ['draft'],
         isFolder: false
       })
     )
 
     await expect(resolveCommentDocumentTarget(webdav, space, document)).resolves.toEqual({
-      id: 'file-1',
+      id: 'owner$space!file-1',
       name: 'New name.md',
       path: '/projects/new-name.md',
       isFolder: false,
       resourceType: 'file',
       mimeType: 'text/markdown',
+      fileId: 'owner$space!file-1',
+      privateLink: 'https://test.oc/f/owner%24space%21file-1',
       tags: ['draft']
     })
   })
@@ -55,7 +59,7 @@ describe('resolve comment dashboard targets', () => {
     webdav.getFileInfo.mockRejectedValue(new Error('not found'))
 
     await expect(resolveCommentDocumentTarget(webdav, space, document)).resolves.toEqual({
-      id: 'file-1',
+      id: 'owner$space!file-1',
       name: 'Old name.md',
       path: '/projects/old-name.md',
       isFolder: false,
@@ -67,7 +71,7 @@ describe('resolve comment dashboard targets', () => {
   it('deduplicates target lookups per document set', async () => {
     webdav.getFileInfo.mockResolvedValue(
       mock<Resource>({
-        fileId: 'file-1',
+        fileId: 'owner$space!file-1',
         name: 'Renamed folder',
         path: '/renamed-folder',
         type: 'folder',
@@ -81,8 +85,8 @@ describe('resolve comment dashboard targets', () => {
     ])
 
     expect(webdav.getFileInfo).toHaveBeenCalledTimes(1)
-    expect(resolved.get('file-1')?.name).toBe('Renamed folder')
-    expect(resolved.get('file-1')?.resourceType).toBe('folder')
+    expect(resolved.get('owner$space!file-1')?.name).toBe('Renamed folder')
+    expect(resolved.get('owner$space!file-1')?.resourceType).toBe('folder')
   })
 
   it('resolves renamed folders from the sidecar container path', async () => {
@@ -159,6 +163,8 @@ describe('resolve comment dashboard targets', () => {
       path: '/',
       isFolder: true,
       resourceType: 'space',
+      fileId: 'space-root$id',
+      privateLink: undefined,
       tags: []
     })
 
