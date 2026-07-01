@@ -1,4 +1,4 @@
-import { Resource, SpaceResource, urlJoin } from '@opencloud-eu/web-client'
+import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { CommentDocument, CommentTarget } from '../types'
 
 export function isSpaceResource(item: unknown): item is SpaceResource {
@@ -36,8 +36,6 @@ function unrefMaybe<T>(value: T | (() => T) | { value: T } | undefined): T | und
   return value as T | undefined
 }
 
-export const COMMENTS_FOLDER_NAME = '.conflu/comments'
-
 export function createCommentTarget(space: SpaceResource, resource: Resource): CommentTarget {
   const path = resource.path || '/'
 
@@ -69,32 +67,6 @@ export function getCommentContainerPath(resource: Resource): string {
   }
 
   return path.slice(0, index)
-}
-
-export function getCommentDirectoryPath(target: CommentTarget): string {
-  return urlJoin(target.containerPath, COMMENTS_FOLDER_NAME)
-}
-
-export function getCommentDocumentPath(target: CommentTarget): string {
-  return urlJoin(getCommentDirectoryPath(target), `${toSafeFileName(target.id)}.json`)
-}
-
-export function toSafeFileName(value: string): string {
-  const safeName = value.replace(/[^a-zA-Z0-9._-]/g, '_')
-  return safeName || 'unknown'
-}
-
-export function getSidecarContainerPath(sidecarPath: string): string | undefined {
-  const marker = '/.conflu/comments/'
-  const index = sidecarPath.indexOf(marker)
-
-  if (index < 0) {
-    return undefined
-  }
-
-  const containerPath = sidecarPath.slice(0, index)
-
-  return containerPath || '/'
 }
 
 export function syncCommentDocumentTarget(

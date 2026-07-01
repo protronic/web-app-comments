@@ -55,7 +55,7 @@
           v-for="thread in threads"
           :key="thread.id"
           :thread="thread"
-          :current-user-id="currentUser.id"
+          :current-user-ids="currentUserIds"
           :disabled="isSaving"
           @reply="replyToThread"
           @update="updateComment"
@@ -112,6 +112,7 @@ const {
   isSaving,
   error,
   currentUser,
+  currentUserIds,
   loadComments,
   createThread,
   replyToThread,

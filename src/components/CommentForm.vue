@@ -13,11 +13,17 @@
     />
 
     <ul
-      v-if="mentionOpen && mentionCandidates.length > 0"
+      v-if="mentionOpen"
       class="ext:absolute ext:z-10 ext:max-h-48 ext:w-full ext:overflow-y-auto ext:rounded-md ext:border ext:border-role-outline ext:bg-role-surface ext:p-1 ext:shadow-lg"
       :style="mentionListStyle"
       role="listbox"
     >
+      <li
+        v-if="mentionCandidates.length === 0"
+        class="ext:px-2 ext:py-1 ext:text-sm ext:text-role-on-surface-variant"
+      >
+        {{ mentionEmptyLabel }}
+      </li>
       <li
         v-for="(candidate, index) in mentionCandidates"
         :key="candidate.id"
@@ -114,6 +120,16 @@ const mentionListStyle = computed(() => ({
   top: '4.5rem'
 }))
 
+const mentionEmptyLabel = computed(() => {
+  const activeMention = getActiveMentionQuery(body.value, cursor.value)
+
+  if (!activeMention?.query) {
+    return $gettext(msg.mentionTypeToSearch)
+  }
+
+  return $gettext(msg.mentionNoResults)
+})
+
 watch(
   () => initialBody,
   (value) => {
@@ -156,10 +172,7 @@ async function refreshMentionCandidates() {
 
   mentionCandidates.value = results
   mentionHighlightIndex.value = 0
-
-  if (results.length === 0) {
-    mentionOpen.value = false
-  }
+  mentionOpen.value = true
 }
 
 function onInput() {
@@ -189,7 +202,16 @@ function selectMention(user: CommentAuthor) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (!mentionOpen.value || mentionCandidates.value.length === 0) {
+  if (!mentionOpen.value) {
+    return
+  }
+
+  if (mentionCandidates.value.length === 0) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMentionList()
+    }
+
     return
   }
 

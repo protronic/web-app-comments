@@ -3,9 +3,9 @@ import { useClientService, useMessages, useSpacesStore, useUserStore } from '@op
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { commentMessages as msg } from '../i18n/messages'
 import { COMMENT_TAG } from '../constants/tags'
-import { userRecordToAuthor } from '../utils/userIdentity'
+import { collectUserIdentityKeys } from '../utils/userIdentity'
 import { CommentsDashboardQuery, DashboardThreadEntry } from '../types'
-import { WebdavSidecarDashboardStorage } from '../storage/WebdavSidecarDashboardStorage'
+import { WebdavPropertyDashboardStorage } from '../storage/WebdavPropertyDashboardStorage'
 import { loadDashboardSpaces } from '../utils/dashboardSpaces'
 
 export function useCommentsDashboard() {
@@ -14,7 +14,7 @@ export function useCommentsDashboard() {
   const clientService = useClientService()
   const spacesStore = useSpacesStore()
   const userStore = useUserStore()
-  const api = new WebdavSidecarDashboardStorage(
+  const api = new WebdavPropertyDashboardStorage(
     clientService.webdav,
     clientService.graphAuthenticated
   )
@@ -32,8 +32,8 @@ export function useCommentsDashboard() {
     tags: [COMMENT_TAG]
   })
 
-  const currentUserId = computed(() =>
-    userRecordToAuthor((userStore.user || {}) as Record<string, unknown>).id
+  const currentUserIds = computed(() =>
+    collectUserIdentityKeys((userStore.user || undefined) as Record<string, unknown>)
   )
 
   const buildEffectiveQuery = (): CommentsDashboardQuery => {
@@ -41,7 +41,7 @@ export function useCommentsDashboard() {
 
     return {
       ...currentQuery,
-      userId: currentQuery.user === 'me' ? unref(currentUserId) : undefined
+      userIds: currentQuery.user === 'me' ? unref(currentUserIds) : undefined
     }
   }
 

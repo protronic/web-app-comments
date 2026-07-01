@@ -110,8 +110,17 @@ export function filterDashboardEntries(
       }
     }
 
-    if (query.user === 'me' && query.userId && !threadInvolvesUser(entry.thread, query.userId)) {
-      return false
+    if (query.user === 'me') {
+      const userIds =
+        query.userIds && query.userIds.length > 0
+          ? query.userIds
+          : query.userId
+            ? [query.userId]
+            : []
+
+      if (userIds.length === 0 || !threadInvolvesUser(entry.thread, userIds)) {
+        return false
+      }
     }
 
     return true

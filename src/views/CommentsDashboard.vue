@@ -24,7 +24,7 @@
             class="ext:rounded-md ext:border ext:border-role-outline ext:bg-role-surface ext:px-3 ext:py-2"
           >
             <option value="all">{{ $gettext(msg.all) }}</option>
-            <option value="open">{{ $gettext(msg.open) }}</option>
+            <option value="open">{{ $gettext(msg.statusOpen) }}</option>
             <option value="resolved">{{ $gettext(msg.resolved) }}</option>
           </select>
         </label>
@@ -133,7 +133,7 @@
                 {{
                   entry.thread.status === 'resolved'
                     ? $gettext(msg.resolved)
-                    : $gettext(msg.open)
+                    : $gettext(msg.statusOpen)
                 }}
               </span>
               <span class="ext:text-xs ext:text-role-on-surface-variant">

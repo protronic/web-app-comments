@@ -75,6 +75,7 @@ export interface CommentsDashboardQuery {
   type?: DashboardTypeFilter
   user?: DashboardUserFilter
   userId?: string
+  userIds?: string[]
   tags?: string[]
   spaceId?: string
   limit?: number

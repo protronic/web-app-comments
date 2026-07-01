@@ -1,5 +1,5 @@
 import { CommentAuthor, CommentThread } from '../types'
-import { authorsMatch } from './userIdentity'
+import { authorMatchesUser, normalizeUserIdentity } from './userIdentity'
 
 const MENTION_PATTERN = /@\[([^\]]+)\]\(user:([^)]+)\)/g
 const MENTION_TOKEN_PATTERN = /@\[([^\]]+)\]\(user:([^)]+)\)/
@@ -27,20 +27,28 @@ export function parseUserMentions(body: string): CommentAuthor[] {
   return mentions
 }
 
-export function commentMentionsUser(body: string, userId: string): boolean {
-  if (!userId) {
+export function commentMentionsUser(body: string, userIds: string | string[]): boolean {
+  const candidates = new Set(
+    (Array.isArray(userIds) ? userIds : [userIds])
+      .map(normalizeUserIdentity)
+      .filter(Boolean)
+  )
+
+  if (candidates.size === 0) {
     return false
   }
 
-  return parseUserMentions(body).some((mention) => mention.id === userId)
+  return parseUserMentions(body).some((mention) => candidates.has(normalizeUserIdentity(mention.id)))
 }
 
-export function threadInvolvesUser(thread: CommentThread, userId: string): boolean {
-  if (!userId) {
-    return true
+export function threadInvolvesUser(thread: CommentThread, userIds: string | string[]): boolean {
+  const ids = Array.isArray(userIds) ? userIds : [userIds]
+
+  if (ids.length === 0 || ids.every((id) => !id.trim())) {
+    return false
   }
 
-  if (thread.resolvedBy && authorsMatch(thread.resolvedBy, userId)) {
+  if (thread.resolvedBy && authorMatchesUser(thread.resolvedBy, ids)) {
     return true
   }
 
@@ -49,7 +57,7 @@ export function threadInvolvesUser(thread: CommentThread, userId: string): boole
       continue
     }
 
-    if (authorsMatch(comment.author, userId) || commentMentionsUser(comment.body, userId)) {
+    if (authorMatchesUser(comment.author, ids) || commentMentionsUser(comment.body, ids)) {
       return true
     }
   }

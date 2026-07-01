@@ -94,6 +94,7 @@
 <script setup lang="ts">
 import { computed, ref, unref } from 'vue'
 import { getThreadTitleLine } from '../utils/comments'
+import { authorMatchesUser } from '../utils/userIdentity'
 import { CommentMessage, CommentThread } from '../types'
 import { renderCommentMarkdown } from '../utils/markdown'
 import { commentMessages as msg } from '../i18n/messages'
@@ -102,9 +103,9 @@ import CommentForm from './CommentForm.vue'
 
 const { $gettext, current: currentLanguage } = useCommentGettext()
 
-const { thread, currentUserId, disabled = false } = defineProps<{
+const { thread, currentUserIds, disabled = false } = defineProps<{
   thread: CommentThread
-  currentUserId: string
+  currentUserIds: string[]
   disabled?: boolean
 }>()
 
@@ -138,7 +139,7 @@ const resolvedLabel = computed(() => {
 })
 
 function canModify(comment: CommentMessage): boolean {
-  return !comment.deletedAt && comment.author.id === currentUserId
+  return !comment.deletedAt && authorMatchesUser(comment.author, currentUserIds)
 }
 
 function startEdit(comment: CommentMessage) {

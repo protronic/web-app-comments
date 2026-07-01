@@ -1,6 +1,6 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { mock } from 'vitest-mock-extended'
-import { getSidecarContainerPath, resolveSidebarSpace } from '../../src/utils/target'
+import { resolveSidebarSpace } from '../../src/utils/target'
 
 describe('resolveSidebarSpace', () => {
   it('uses root as the active space', () => {
@@ -35,13 +35,5 @@ describe('resolveSidebarSpace', () => {
         items: [mock<Resource>({ name: 'Notes.md' })]
       })
     ).toBeNull()
-  })
-})
-
-describe('getSidecarContainerPath', () => {
-  it('derives the commented resource container from a sidecar path', () => {
-    expect(
-      getSidecarContainerPath('/Testordner/.conflu/comments/file-1.json')
-    ).toBe('/Testordner')
   })
 })

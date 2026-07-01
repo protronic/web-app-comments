@@ -8,9 +8,9 @@ import {
 import { MESSAGE_TYPE } from '@opencloud-eu/web-client/sse'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { commentMessages as msg } from '../i18n/messages'
-import { userRecordToAuthor } from '../utils/userIdentity'
+import { userRecordToAuthor, collectUserIdentityKeys } from '../utils/userIdentity'
 import { CommentAuthor, CommentStorage, CommentTarget, CommentThread } from '../types'
-import { WebdavSidecarCommentStorage } from '../storage/WebdavSidecarCommentStorage'
+import { WebdavPropertyCommentStorage } from '../storage/WebdavPropertyCommentStorage'
 import { sortThreads } from '../utils/comments'
 
 export function useComments(target: () => CommentTarget | null) {
@@ -20,8 +20,9 @@ export function useComments(target: () => CommentTarget | null) {
   const { webdav } = clientService
   const capabilityStore = useCapabilityStore()
   const userStore = useUserStore()
-  const storage: CommentStorage = new WebdavSidecarCommentStorage(
+  const storage: CommentStorage = new WebdavPropertyCommentStorage(
     webdav,
+    clientService.httpAuthenticated,
     clientService.graphAuthenticated.tags
   )
 
@@ -32,6 +33,10 @@ export function useComments(target: () => CommentTarget | null) {
 
   const currentUser = computed<CommentAuthor>(() =>
     userRecordToAuthor((userStore.user || {}) as Record<string, unknown>)
+  )
+
+  const currentUserIds = computed(() =>
+    collectUserIdentityKeys((userStore.user || undefined) as Record<string, unknown>)
   )
 
   const loadComments = async () => {
@@ -118,7 +123,7 @@ export function useComments(target: () => CommentTarget | null) {
     }
   }
 
-  const onCommentSidecarTouched = (msg: MessageEvent) => {
+  const onCommentTargetTouched = (msg: MessageEvent) => {
     const data = parseSsePayload(msg)
 
     if (data?.initiatorid === clientService.initiatorId) {
@@ -135,7 +140,7 @@ export function useComments(target: () => CommentTarget | null) {
 
     clientService.sseAuthenticated.addEventListener(
       MESSAGE_TYPE.FILE_TOUCHED,
-      onCommentSidecarTouched
+      onCommentTargetTouched
     )
   })
 
@@ -146,7 +151,7 @@ export function useComments(target: () => CommentTarget | null) {
 
     clientService.sseAuthenticated.removeEventListener(
       MESSAGE_TYPE.FILE_TOUCHED,
-      onCommentSidecarTouched
+      onCommentTargetTouched
     )
   })
 
@@ -158,6 +163,7 @@ export function useComments(target: () => CommentTarget | null) {
     isSaving,
     error,
     currentUser,
+    currentUserIds,
     loadComments,
     createThread,
     replyToThread,

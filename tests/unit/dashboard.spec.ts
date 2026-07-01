@@ -194,7 +194,7 @@ describe('comments dashboard api helpers', () => {
 
     const filtered = filterDashboardEntries([...entries, mentionedThread], {
       user: 'me',
-      userId: 'alice'
+      userIds: ['alice']
     })
 
     expect(filtered.map((entry) => entry.thread.id)).toEqual([

@@ -2,38 +2,28 @@ import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { mock } from 'vitest-mock-extended'
 import { COMMENT_TAG } from '../../src/constants/tags'
+import { COMMENT_PROPERTY_NAME } from '../../src/utils/commentProperty'
 import { CommentTagsGraphClient } from '../../src/utils/commentTags'
-import { WebdavSidecarCommentStorage } from '../../src/storage/WebdavSidecarCommentStorage'
-import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
-import {
-  createCommentTarget,
-  getCommentDirectoryPath,
-  getCommentDocumentPath
-} from '../../src/utils/target'
+import { WebdavPropertyCommentStorage } from '../../src/storage/WebdavPropertyCommentStorage'
+import { createCommentTarget } from '../../src/utils/target'
 
-describe('webdav sidecar comments', () => {
-  const space = mock<SpaceResource>()
+describe('webdav property comments', () => {
+  const space = mock<SpaceResource>({
+    webDavPath: '/spaces/owner$space'
+  })
+
+  const http = {
+    request: vi.fn().mockResolvedValue({ status: 207 })
+  }
 
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-06-28T12:00:00.000Z'))
+    http.request.mockClear()
   })
 
   afterEach(() => {
     vi.useRealTimers()
-  })
-
-  it('stores sidecars in a .conflu comments folder next to files', () => {
-    const resource = mock<Resource>({
-      fileId: 'file:1/2',
-      name: 'README.md',
-      path: '/handbook/README.md',
-      isFolder: false
-    })
-    const target = createCommentTarget(space, resource)
-
-    expect(getCommentDirectoryPath(target)).toBe('/handbook/.conflu/comments')
-    expect(getCommentDocumentPath(target)).toBe('/handbook/.conflu/comments/file_1_2.json')
   })
 
   it('assigns the commented tag when creating a thread', async () => {
@@ -48,8 +38,8 @@ describe('webdav sidecar comments', () => {
         isFolder: false
       })
     )
-    const storage = new WebdavSidecarCommentStorage(webdav, graph)
-    webdav.getFileContents.mockRejectedValue({ status: 404 })
+    const storage = new WebdavPropertyCommentStorage(webdav, http, graph)
+    webdav.getFileInfo.mockRejectedValue({ status: 404 })
 
     await storage.createThread(target, {
       body: 'Hello',
@@ -63,7 +53,7 @@ describe('webdav sidecar comments', () => {
     })
   })
 
-  it('creates a new thread when no sidecar file exists yet', async () => {
+  it('creates a new thread when no comment property exists yet', async () => {
     const webdav = mock<WebDAV>()
     const target = createCommentTarget(
       space,
@@ -74,8 +64,8 @@ describe('webdav sidecar comments', () => {
         isFolder: false
       })
     )
-    const storage = new WebdavSidecarCommentStorage(webdav)
-    webdav.getFileContents.mockRejectedValue({ status: 404 })
+    const storage = new WebdavPropertyCommentStorage(webdav, http)
+    webdav.getFileInfo.mockRejectedValue({ status: 404 })
 
     const thread = await storage.createThread(target, {
       body: 'Hello **world**',
@@ -84,12 +74,11 @@ describe('webdav sidecar comments', () => {
     })
 
     expect(thread.comments[0].body).toBe('Hello **world**')
-    expect(webdav.createFolder).toHaveBeenCalledWith(space, { path: '/.conflu' })
-    expect(webdav.createFolder).toHaveBeenCalledWith(space, { path: '/.conflu/comments' })
-    expect(webdav.putFileContents).toHaveBeenCalledWith(
-      space,
+    expect(webdav.registerExtraProp).toHaveBeenCalledWith(COMMENT_PROPERTY_NAME)
+    expect(http.request).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: '/.conflu/comments/file-1.json'
+        method: 'PROPPATCH',
+        url: '/remote.php/dav/spaces/owner$space/README.md'
       })
     )
   })
@@ -105,32 +94,36 @@ describe('webdav sidecar comments', () => {
         isFolder: false
       })
     )
-    const storage = new WebdavSidecarCommentStorage(webdav)
+    const storage = new WebdavPropertyCommentStorage(webdav, http)
 
-    webdav.getFileContents.mockResolvedValue({
-      body: JSON.stringify({
-        version: 1,
-        target: { id: target.id, name: target.name, path: target.path, isFolder: false },
-        threads: [
-          {
-            id: 'thread-1',
-            targetId: target.id,
-            status: 'open',
-            createdAt: '2026-06-28T11:00:00.000Z',
-            updatedAt: '2026-06-28T11:00:00.000Z',
-            comments: [
+    webdav.getFileInfo.mockResolvedValue(
+      mock<Resource>({
+        extraProps: {
+          [COMMENT_PROPERTY_NAME]: JSON.stringify({
+            version: 1,
+            target: { id: target.id, name: target.name, path: target.path, isFolder: false },
+            threads: [
               {
-                id: 'comment-1',
-                body: 'Draft',
-                format: 'markdown',
-                author: { id: 'marie', displayName: 'Marie' },
-                createdAt: '2026-06-28T11:00:00.000Z'
+                id: 'thread-1',
+                targetId: target.id,
+                status: 'open',
+                createdAt: '2026-06-28T11:00:00.000Z',
+                updatedAt: '2026-06-28T11:00:00.000Z',
+                comments: [
+                  {
+                    id: 'comment-1',
+                    body: 'Draft',
+                    format: 'markdown',
+                    author: { id: 'marie', displayName: 'Marie' },
+                    createdAt: '2026-06-28T11:00:00.000Z'
+                  }
+                ]
               }
             ]
-          }
-        ]
+          })
+        }
       })
-    } as never)
+    )
 
     const thread = await storage.deleteComment(target, 'thread-1', 'comment-1', {
       id: 'marie',
@@ -141,7 +134,7 @@ describe('webdav sidecar comments', () => {
     expect(thread.comments[0].deletedAt).toBe('2026-06-28T12:00:00.000Z')
   })
 
-  it('writes the current target name and path into the sidecar on save', async () => {
+  it('writes the current target name and path into the document on save', async () => {
     const webdav = mock<WebDAV>()
     const target = createCommentTarget(
       space,
@@ -152,37 +145,39 @@ describe('webdav sidecar comments', () => {
         isFolder: false
       })
     )
-    const storage = new WebdavSidecarCommentStorage(webdav)
+    const storage = new WebdavPropertyCommentStorage(webdav, http)
 
-    webdav.getFileContents.mockResolvedValue({
-      body: JSON.stringify({
-        version: 1,
-        target: {
-          id: target.id,
-          name: 'Old.txt',
-          path: '/docs/Old.txt',
-          isFolder: false
-        },
-        threads: []
+    webdav.getFileInfo.mockResolvedValue(
+      mock<Resource>({
+        extraProps: {
+          [COMMENT_PROPERTY_NAME]: JSON.stringify({
+            version: 1,
+            target: {
+              id: target.id,
+              name: 'Old.txt',
+              path: '/docs/Old.txt',
+              isFolder: false
+            },
+            threads: []
+          })
+        }
       })
-    } as never)
+    )
 
     await storage.createThread(target, {
-      body: 'Updated sidecar metadata',
+      body: 'Updated document metadata',
       format: 'markdown',
       author: { id: 'marie', displayName: 'Marie' }
     })
 
-    expect(webdav.putFileContents).toHaveBeenCalledWith(
-      space,
+    expect(http.request).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('"name": "Renamed.txt"')
+        data: expect.stringContaining('Renamed.txt')
       })
     )
-    expect(webdav.putFileContents).toHaveBeenCalledWith(
-      space,
+    expect(http.request).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: expect.stringContaining('"path": "/docs/Renamed.txt"')
+        data: expect.stringContaining('/docs/Renamed.txt')
       })
     )
   })

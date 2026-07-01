@@ -57,7 +57,7 @@ describe('resolve comment dashboard targets', () => {
     })
   })
 
-  it('falls back to the sidecar snapshot when lookup fails', async () => {
+  it('falls back to the stored snapshot when lookup fails', async () => {
     webdav.getFileInfo.mockRejectedValue(new Error('not found'))
 
     await expect(resolveCommentDocumentTarget(webdav, space, document)).resolves.toEqual({
@@ -91,13 +91,13 @@ describe('resolve comment dashboard targets', () => {
     expect(resolved.get('owner$space!file-1')?.resourceType).toBe('folder')
   })
 
-  it('resolves renamed folders from the sidecar container path', async () => {
+  it('resolves renamed folders from the stored path', async () => {
     const folderDocument: CommentDocument = {
       version: 1,
       target: {
         id: 'folder-1',
-        name: 'Old folder',
-        path: '/Old folder',
+        name: 'Renamed folder',
+        path: '/Renamed folder',
         isFolder: true
       },
       threads: []
@@ -121,9 +121,7 @@ describe('resolve comment dashboard targets', () => {
       throw new Error('not found')
     })
 
-    await expect(
-      resolveCommentDocumentTarget(webdav, space, folderDocument, '/Renamed folder/.conflu/comments/folder-1.json')
-    ).resolves.toEqual({
+    await expect(resolveCommentDocumentTarget(webdav, space, folderDocument)).resolves.toEqual({
       id: 'folder-1',
       name: 'Renamed folder',
       path: '/Renamed folder',
@@ -133,7 +131,7 @@ describe('resolve comment dashboard targets', () => {
     })
   })
 
-  it('resolves space-root comments from the space sidecar container', async () => {
+  it('resolves space-root comments from the space metadata', async () => {
     const projectSpace = mock<SpaceResource>({
       id: 'space-root$id',
       name: 'Project space',
@@ -152,14 +150,7 @@ describe('resolve comment dashboard targets', () => {
       threads: []
     }
 
-    await expect(
-      resolveCommentDocumentTarget(
-        webdav,
-        projectSpace,
-        spaceDocument,
-        '/.conflu/comments/space-root_id.json'
-      )
-    ).resolves.toEqual({
+    await expect(resolveCommentDocumentTarget(webdav, projectSpace, spaceDocument)).resolves.toEqual({
       id: 'space-root$id',
       name: 'Project space',
       path: '/',
@@ -178,8 +169,8 @@ describe('resolve comment dashboard targets', () => {
       version: 1,
       target: {
         id: 'folder-1',
-        name: 'Old folder',
-        path: '/Old folder',
+        name: 'Testordner',
+        path: '/Testordner',
         isFolder: true
       },
       threads: []
@@ -209,14 +200,7 @@ describe('resolve comment dashboard targets', () => {
       throw new Error('not found')
     })
 
-    await expect(
-      resolveCommentDocumentTarget(
-        webdav,
-        space,
-        folderDocument,
-        '/Testordner/.conflu/comments/folder-1.json'
-      )
-    ).resolves.toEqual({
+    await expect(resolveCommentDocumentTarget(webdav, space, folderDocument)).resolves.toEqual({
       id: 'folder-1',
       name: 'Testordner',
       path: '/Testordner',

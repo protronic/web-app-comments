@@ -12,20 +12,21 @@ import {
   createCommentMessage,
   createCommentThread,
   createDeletedCommentPlaceholder,
-  createEmptyCommentDocument,
   sortThreads,
   touchThread
 } from '../utils/comments'
 import { CommentTagsGraphClient, syncCommentedTag } from '../utils/commentTags'
 import {
-  getCommentDirectoryPath,
-  getCommentDocumentPath,
-  syncCommentDocumentTarget
-} from '../utils/target'
+  CommentPropertyHttpClient,
+  readCommentDocument,
+  writeCommentDocument
+} from '../utils/commentProperty'
+import { syncCommentDocumentTarget } from '../utils/target'
 
-export class WebdavSidecarCommentStorage implements CommentStorage {
+export class WebdavPropertyCommentStorage implements CommentStorage {
   public constructor(
     private readonly webdav: WebDAV,
+    private readonly http: CommentPropertyHttpClient,
     private readonly graph?: CommentTagsGraphClient
   ) {}
 
@@ -127,63 +128,17 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
   }
 
   private async loadDocument(target: CommentTarget): Promise<CommentDocument> {
-    try {
-      const response = await this.webdav.getFileContents(target.space, {
-        path: getCommentDocumentPath(target)
-      })
-      const document = normalizeCommentDocument(target, JSON.parse(response.body))
-      await syncCommentedTag(this.graph, this.webdav, target, document)
+    const document = await readCommentDocument(this.webdav, target)
+    await syncCommentedTag(this.graph, this.webdav, target, document)
 
-      return document
-    } catch (error) {
-      if (isNotFoundError(error)) {
-        return createEmptyCommentDocument(target)
-      }
-
-      throw error
-    }
+    return document
   }
 
   private async saveDocument(target: CommentTarget, document: CommentDocument): Promise<void> {
     const payload = syncCommentDocumentTarget(target, document)
 
-    await this.ensureCommentDirectory(target)
-    await this.webdav.putFileContents(target.space, {
-      path: getCommentDocumentPath(target),
-      content: JSON.stringify(payload, null, 2)
-    })
+    await writeCommentDocument(this.webdav, this.http, target, payload)
     await syncCommentedTag(this.graph, this.webdav, target, payload)
-  }
-
-  private async ensureCommentDirectory(target: CommentTarget): Promise<void> {
-    const confluPath = getCommentDirectoryPath(target).replace(/\/comments$/, '')
-
-    for (const path of [confluPath, getCommentDirectoryPath(target)]) {
-      try {
-        await this.webdav.createFolder(target.space, { path })
-      } catch {
-        // The folder may already exist. Permission errors surface when writing the sidecar file.
-      }
-    }
-  }
-}
-
-function normalizeCommentDocument(target: CommentTarget, value: unknown): CommentDocument {
-  const document = value as Partial<CommentDocument>
-
-  if (!document || document.version !== 1 || !Array.isArray(document.threads)) {
-    return createEmptyCommentDocument(target)
-  }
-
-  return {
-    version: 1,
-    target: {
-      id: target.id,
-      name: target.name,
-      path: target.path,
-      isFolder: target.isFolder
-    },
-    threads: document.threads
   }
 }
 
@@ -205,17 +160,4 @@ function findComment(thread: CommentThread, commentId: string) {
   }
 
   return comment
-}
-
-function isNotFoundError(error: unknown): boolean {
-  const responseStatus = (
-    error as { status?: number; statusCode?: number; response?: { status?: number } }
-  )?.response?.status
-  const statusCode =
-    responseStatus ||
-    (error as { status?: number; statusCode?: number })?.status ||
-    (error as { status?: number; statusCode?: number })?.statusCode
-  const message = (error as Error)?.message || ''
-
-  return statusCode === 404 || message.includes('404') || message.includes('Not Found')
 }

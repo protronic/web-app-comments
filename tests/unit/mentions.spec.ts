@@ -62,8 +62,10 @@ describe('comment mentions', () => {
       ]
     }
 
-    expect(threadInvolvesUser(thread, 'alice')).toBe(true)
-    expect(threadInvolvesUser(thread, 'bob')).toBe(true)
-    expect(threadInvolvesUser(thread, 'charlie')).toBe(false)
+    expect(threadInvolvesUser(thread, ['alice'])).toBe(true)
+    expect(threadInvolvesUser(thread, ['bob'])).toBe(true)
+    expect(threadInvolvesUser(thread, ['00000000-0000-0000-0000-0000000000bb', 'bob'])).toBe(true)
+    expect(threadInvolvesUser(thread, ['charlie'])).toBe(false)
+    expect(threadInvolvesUser(thread, [])).toBe(false)
   })
 })
