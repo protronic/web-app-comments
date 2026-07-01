@@ -54,6 +54,17 @@
           </select>
         </label>
 
+        <label class="ext:flex ext:flex-col ext:gap-1 ext:text-sm">
+          <span>{{ $gettext(msg.user) }}</span>
+          <select
+            v-model="query.user"
+            class="ext:rounded-md ext:border ext:border-role-outline ext:bg-role-surface ext:px-3 ext:py-2"
+          >
+            <option value="me">{{ $gettext(msg.me) }}</option>
+            <option value="all">{{ $gettext(msg.allUsers) }}</option>
+          </select>
+        </label>
+
         <fieldset class="ext:flex ext:min-w-48 ext:flex-col ext:gap-2 ext:text-sm">
           <legend class="ext:px-1">{{ $gettext(msg.tags) }}</legend>
           <label

@@ -8,6 +8,7 @@ import {
 import { MESSAGE_TYPE } from '@opencloud-eu/web-client/sse'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { commentMessages as msg } from '../i18n/messages'
+import { userRecordToAuthor } from '../utils/userIdentity'
 import { CommentAuthor, CommentStorage, CommentTarget, CommentThread } from '../types'
 import { WebdavSidecarCommentStorage } from '../storage/WebdavSidecarCommentStorage'
 import { sortThreads } from '../utils/comments'
@@ -29,13 +30,9 @@ export function useComments(target: () => CommentTarget | null) {
   const isSaving = ref(false)
   const error = ref<string>()
 
-  const currentUser = computed<CommentAuthor>(() => {
-    const user = (userStore.user || {}) as Record<string, unknown>
-    const id = String(user.id || user.onPremisesSamAccountName || user.userName || 'current-user')
-    const displayName = String(user.displayName || user.name || user.userName || id)
-
-    return { id, displayName }
-  })
+  const currentUser = computed<CommentAuthor>(() =>
+    userRecordToAuthor((userStore.user || {}) as Record<string, unknown>)
+  )
 
   const loadComments = async () => {
     const currentTarget = target()

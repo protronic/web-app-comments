@@ -67,11 +67,14 @@ export type DashboardStatusFilter = 'all' | 'open' | 'resolved'
 export type DashboardAnsweredFilter = 'all' | 'answered' | 'unanswered'
 export type DashboardResourceType = 'file' | 'folder' | 'space'
 export type DashboardTypeFilter = 'all' | DashboardResourceType
+export type DashboardUserFilter = 'all' | 'me'
 
 export interface CommentsDashboardQuery {
   status?: DashboardStatusFilter
   answered?: DashboardAnsweredFilter
   type?: DashboardTypeFilter
+  user?: DashboardUserFilter
+  userId?: string
   tags?: string[]
   spaceId?: string
   limit?: number

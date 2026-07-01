@@ -10,6 +10,7 @@ import {
 } from '../types'
 import { SpaceResource } from '@opencloud-eu/web-client'
 import { getCommentPreviewLine, getLastReplyComment } from './comments'
+import { threadInvolvesUser } from './mentions'
 import { isSpaceRootCommentTarget } from './resolveTarget'
 
 export function enrichDashboardTarget(
@@ -107,6 +108,10 @@ export function filterDashboardEntries(
       if (!selectedTags.every((tag) => entry.target.tags.includes(tag))) {
         return false
       }
+    }
+
+    if (query.user === 'me' && query.userId && !threadInvolvesUser(entry.thread, query.userId)) {
+      return false
     }
 
     return true

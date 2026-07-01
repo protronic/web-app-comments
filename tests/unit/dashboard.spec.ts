@@ -176,6 +176,35 @@ describe('comments dashboard api helpers', () => {
     expect(filtered.map((entry) => entry.thread.id)).toEqual(['thread-open-unanswered'])
   })
 
+  it('filters threads by current user involvement and mentions', () => {
+    const entries = document.threads.map((thread) => buildDashboardEntry(space, thread, target))
+    const mentionedThread = buildDashboardEntry(space, {
+      ...document.threads[0],
+      id: 'thread-mentioned',
+      comments: [
+        {
+          id: 'comment-mentioned',
+          body: 'Please review @[Alice](user:alice)',
+          format: 'markdown',
+          author: { id: 'bob', displayName: 'Bob' },
+          createdAt: '2026-06-28T10:00:00.000Z'
+        }
+      ]
+    }, target)
+
+    const filtered = filterDashboardEntries([...entries, mentionedThread], {
+      user: 'me',
+      userId: 'alice'
+    })
+
+    expect(filtered.map((entry) => entry.thread.id)).toEqual([
+      'thread-open-unanswered',
+      'thread-open-answered',
+      'thread-resolved',
+      'thread-mentioned'
+    ])
+  })
+
   it('filters by resource type and tag from opencloud metadata', () => {
     const entries = [
       buildDashboardEntry(space, document.threads[0], target),

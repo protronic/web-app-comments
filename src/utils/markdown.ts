@@ -1,5 +1,10 @@
+import { replaceMentionsWithHtml } from './mentions'
+
 export function renderCommentMarkdown(value: string): string {
-  return linkify(renderInlineMarkdown(escapeHtml(value))).replace(/\n/g, '<br>')
+  return linkify(renderInlineMarkdown(replaceMentionsWithHtml(escapeHtml(value)))).replace(
+    /\n/g,
+    '<br>'
+  )
 }
 
 function renderInlineMarkdown(value: string): string {

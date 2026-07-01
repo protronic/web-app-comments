@@ -1,8 +1,9 @@
-import { onMounted, ref, unref, watch } from 'vue'
+import { computed, onMounted, ref, unref, watch } from 'vue'
 import { useClientService, useMessages, useSpacesStore, useUserStore } from '@opencloud-eu/web-pkg'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { commentMessages as msg } from '../i18n/messages'
 import { COMMENT_TAG } from '../constants/tags'
+import { userRecordToAuthor } from '../utils/userIdentity'
 import { CommentsDashboardQuery, DashboardThreadEntry } from '../types'
 import { WebdavSidecarDashboardStorage } from '../storage/WebdavSidecarDashboardStorage'
 import { loadDashboardSpaces } from '../utils/dashboardSpaces'
@@ -27,8 +28,22 @@ export function useCommentsDashboard() {
     status: 'open',
     answered: 'answered',
     type: 'all',
+    user: 'me',
     tags: [COMMENT_TAG]
   })
+
+  const currentUserId = computed(() =>
+    userRecordToAuthor((userStore.user || {}) as Record<string, unknown>).id
+  )
+
+  const buildEffectiveQuery = (): CommentsDashboardQuery => {
+    const currentQuery = unref(query)
+
+    return {
+      ...currentQuery,
+      userId: currentQuery.user === 'me' ? unref(currentUserId) : undefined
+    }
+  }
 
   const loadAvailableTags = async () => {
     try {
@@ -50,7 +65,7 @@ export function useCommentsDashboard() {
 
     try {
       const spaces = await loadDashboardSpaces(spacesStore, clientService.graphAuthenticated)
-      const result = await api.listThreads(spaces, unref(query))
+      const result = await api.listThreads(spaces, buildEffectiveQuery())
       entries.value = result.entries
       total.value = result.total
     } catch (e) {

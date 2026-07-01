@@ -163,6 +163,11 @@ function formattedDate(value: string): string {
 </script>
 
 <style scoped>
+.comments-markdown :deep(.comment-mention) {
+  color: var(--oc-color-role-primary);
+  font-weight: 600;
+}
+
 .comments-markdown :deep(p) {
   margin: 0;
 }

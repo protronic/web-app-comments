@@ -1,7 +1,8 @@
 export const commentMessages = {
   all: 'All',
   allThreadsDescription:
-    'All comment threads across your spaces. Filter by status, replies, resource type, and tags.',
+    'All comment threads across your spaces. Filter by status, replies, resource type, user involvement, and tags.',
+  allUsers: 'All users',
   answered: 'Answered',
   cancel: 'Cancel',
   comment: 'Comment',
@@ -21,6 +22,8 @@ export const commentMessages = {
   loadingCommentDashboard: 'Loading comment dashboard',
   loadingComments: 'Loading comments',
   markdownSupported: 'Markdown is supported.',
+  mentionHint: 'Type @ to mention someone.',
+  me: 'Me',
   noMatchingThreads: 'No comment threads match the current filters.',
   noCommentsYet: 'No comments yet. Start the discussion above.',
   noRepliesYet: 'No replies yet',
@@ -51,6 +54,7 @@ export const commentMessages = {
   tags: 'Tags',
   type: 'Type',
   unanswered: 'Unanswered',
+  user: 'User',
   updateComment: 'Update comment',
   writeComment: 'Write a comment',
   writeReply: 'Write a reply',
