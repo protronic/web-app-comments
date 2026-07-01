@@ -16,17 +16,20 @@ import {
   sortThreads,
   touchThread
 } from '../utils/comments'
-import { CommentTagsGraphClient, syncCommentedTag } from '../utils/commentTags'
+import { CommentTagsGraphClient, isGraphResourceId, syncCommentedTag } from '../utils/commentTags'
+import { SidecarPermissionsGraphClient, syncSidecarPermissions } from '../utils/sidecarPermissions'
 import {
   getCommentDocumentPath,
   getCommentSidecarReadPaths,
   syncCommentDocumentTarget
 } from '../utils/target'
 
+export interface SidecarGraphClient extends CommentTagsGraphClient, SidecarPermissionsGraphClient {}
+
 export class WebdavSidecarCommentStorage implements CommentStorage {
   public constructor(
     private readonly webdav: WebDAV,
-    private readonly graph?: CommentTagsGraphClient
+    private readonly graph?: SidecarGraphClient
   ) {}
 
   public async list(target: CommentTarget): Promise<CommentThread[]> {
@@ -147,11 +150,31 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
   private async saveDocument(target: CommentTarget, document: CommentDocument): Promise<void> {
     const payload = syncCommentDocumentTarget(target, document)
 
-    await this.webdav.putFileContents(target.space, {
-      path: getCommentDocumentPath(target),
+    const sidecarPath = getCommentDocumentPath(target)
+    let sidecarResource = await this.webdav.putFileContents(target.space, {
+      path: sidecarPath,
       content: JSON.stringify(payload, null, 2)
     })
+
+    if (
+      !sidecarResource ||
+      (!isGraphResourceId(sidecarResource.fileId) && !isGraphResourceId(sidecarResource.id))
+    ) {
+      try {
+        sidecarResource = await this.webdav.getFileInfo(target.space, { path: sidecarPath })
+      } catch {
+        sidecarResource = undefined
+      }
+    }
+
     await syncCommentedTag(this.graph, this.webdav, target, payload)
+
+    if (
+      sidecarResource &&
+      (isGraphResourceId(sidecarResource.fileId) || isGraphResourceId(sidecarResource.id))
+    ) {
+      await syncSidecarPermissions(this.graph, this.webdav, target.space, target, sidecarResource)
+    }
   }
 }
 

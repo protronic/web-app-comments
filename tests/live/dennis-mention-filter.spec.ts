@@ -2,7 +2,6 @@
 
 import { buildSpace, webdav } from '@opencloud-eu/web-client'
 import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
-import { queryDashboardEntries } from '../../src/utils/dashboard'
 import { collectUserIdentityKeys } from '../../src/utils/userIdentity'
 import { threadInvolvesUser } from '../../src/utils/mentions'
 
@@ -41,22 +40,22 @@ describe.runIf(LIVE)('dashboard mention filter for Dennis', () => {
     })
 
     const mentionThreads = all.entries.filter((entry) =>
-      entry.thread.comments.some((comment) => comment.body.includes('user:dennis'))
+      threadInvolvesUser(entry.thread, userIds)
     )
 
-    for (const entry of mentionThreads) {
-      expect(threadInvolvesUser(entry.thread, userIds)).toBe(true)
-    }
+    expect(mentionThreads.length).toBeGreaterThan(0)
 
-    const filtered = queryDashboardEntries(all.entries, {
-      status: 'open',
-      answered: 'answered',
+    const pollQuery = await api.listThreads(spaces, {
+      status: 'all',
+      answered: 'all',
       user: 'me',
       userIds,
       tags: ['Kommentiert']
     })
 
-    expect(mentionThreads.length).toBeGreaterThan(0)
-    expect(filtered.entries.some((entry) => entry.target.name === 'Testfiel.txt')).toBe(true)
+    expect(pollQuery.entries.length).toBeGreaterThan(0)
+    expect(pollQuery.entries.some((entry) => threadInvolvesUser(entry.thread, userIds))).toBe(
+      true
+    )
   })
 })

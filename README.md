@@ -102,6 +102,12 @@ Each JSON document contains `threads[]` with `status`, `comments[]`, and a `targ
 
 See [docs/](docs/) for the storage model, dashboard API, and planned native backend.
 
+### Limitations: individual file shares & notifications
+
+Comments on **individually shared files** (single-file shares, not folders or project spaces) rely on a separate `.jsco` sidecar. Mentions, dashboard filters, and notifications are **best effort** in that setup. Share notifications in the bell come from the OpenCloud server; **@mention alerts are not** server notifications today.
+
+See [docs/individual-file-shares-and-notifications.md](docs/individual-file-shares-and-notifications.md) for details. The sidebar shows a warning when commenting on such files.
+
 ## Project structure
 
 ```

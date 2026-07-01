@@ -74,7 +74,7 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       }
     }
 
-    return queryDashboardEntries(entries, query)
+    return queryDashboardEntries(entries, withoutTagRefilter(query))
   }
 
   private async loadDocumentForTarget(
@@ -122,5 +122,18 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       },
       threads: document.threads
     }
+  }
+}
+
+function withoutTagRefilter(query: CommentsDashboardQuery): CommentsDashboardQuery {
+  if (!query.tags?.length) {
+    return query
+  }
+
+  // Tag search above already matched these resources. Re-filtering by
+  // entry.target.tags drops mountpoint/shared hits because WebDAV often omits tags there.
+  return {
+    ...query,
+    tags: undefined
   }
 }

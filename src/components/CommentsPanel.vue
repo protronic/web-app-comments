@@ -15,6 +15,19 @@
     </div>
 
     <template v-else>
+      <div
+        v-if="showIndividualShareHint"
+        class="ext:rounded-lg ext:border ext:border-role-warning ext:bg-role-warning-container ext:p-3 ext:text-sm ext:text-role-on-warning-container"
+        role="status"
+      >
+        <p class="ext:m-0 ext:font-medium">
+          {{ $gettext(msg.individualShareCommentWarningTitle) }}
+        </p>
+        <p class="ext:mb-0 ext:mt-2">
+          {{ $gettext(msg.individualShareCommentWarningDesc) }}
+        </p>
+      </div>
+
       <CommentForm
         :key="commentTarget.id"
         :submit-label="$gettext(msg.comment)"
@@ -72,12 +85,16 @@ import { computed, unref } from 'vue'
 import { Resource } from '@opencloud-eu/web-client'
 import { createCommentTarget, resolveSidebarSpace } from '../utils/target'
 import { useComments } from '../composables/useComments'
+import { useIndividualShareCommentHint } from '../composables/useIndividualShareCommentHint'
+import { ensureCommentNotificationListener } from '../composables/useCommentNotifications'
 import { commentMessages as msg } from '../i18n/messages'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import CommentForm from './CommentForm.vue'
 import CommentThread from './CommentThread.vue'
 
 const { $gettext } = useCommentGettext()
+
+ensureCommentNotificationListener()
 
 const { panelContext } = defineProps<{
   panelContext: Record<string, any>
@@ -105,6 +122,11 @@ const commentTarget = computed(() => {
 
   return createCommentTarget(space, resource)
 })
+
+const { showIndividualShareHint } = useIndividualShareCommentHint(
+  () => unref(selectedSpace),
+  () => unref(selectedResource)
+)
 
 const {
   threads,

@@ -27,7 +27,7 @@ export function findSpaceForSearchResource(
   return undefined
 }
 
-function findMountpointForStorageId(
+export function findMountpointForStorageId(
   spaces: SpaceResource[],
   storageId: string
 ): SpaceResource | undefined {

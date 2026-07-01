@@ -1,6 +1,6 @@
 # Benachrichtigungen für Comments – Anregungen
 
-Stand: Ergänzung zum Sidecar-MVP mit @‑Erwähnungen (`@[Name](user:id)`) und Dashboard-Filter **Ich**.
+Stand: Sidecar-MVP mit @‑Erwähnungen; siehe auch [individual-file-shares-and-notifications.md](./individual-file-shares-and-notifications.md) für Grenzen bei **einzeln freigegebenen Dateien** (Sidecar-Rechte, Dashboard, Toasts vs. Glocke).
 
 Ziel: Nutzer sollen **zeitnah** erfahren, wenn etwas sie betrifft – nicht nur beim Öffnen des Dashboards. Erwähnungen sind dabei **eigene Trigger** neben Antworten, neuen Threads usw.
 

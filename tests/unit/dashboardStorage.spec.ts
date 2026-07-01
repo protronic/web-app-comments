@@ -168,4 +168,74 @@ describe('WebdavSidecarDashboardStorage', () => {
     expect(result.total).toBe(1)
     expect(result.entries[0]?.thread.comments[0]?.body).toBe('Legacy sidecar')
   })
+
+  it('keeps tagged search results when resolved resources omit tags', async () => {
+    const webdav = mock<WebDAV>()
+    const resource = mock<SearchResource>({
+      storageId: 'owner$space',
+      fileId: 'owner$space!file-1',
+      id: 'owner$space!file-1',
+      name: 'Plan.md',
+      path: '/Plan.md',
+      isFolder: false,
+      tags: [COMMENT_TAG],
+      highlights: ''
+    })
+    const storage = new WebdavSidecarDashboardStorage(webdav)
+
+    webdav.search.mockResolvedValue({
+      resources: [resource],
+      totalResults: 1
+    } as never)
+    webdav.getFileContents.mockResolvedValue({
+      body: JSON.stringify({
+        version: 1,
+        target: {
+          id: 'owner$space!file-1',
+          name: 'Plan.md',
+          path: '/Plan.md',
+          isFolder: false
+        },
+        threads: [
+          {
+            id: 'thread-1',
+            targetId: 'owner$space!file-1',
+            status: 'open',
+            createdAt: '2026-06-28T10:00:00.000Z',
+            updatedAt: '2026-06-28T10:00:00.000Z',
+            comments: [
+              {
+                id: 'comment-1',
+                body: 'Hello @[Dennis Ritchie](user:dennis)',
+                format: 'markdown',
+                author: { id: 'alice', displayName: 'Alice' },
+                createdAt: '2026-06-28T10:00:00.000Z'
+              }
+            ]
+          }
+        ]
+      })
+    } as never)
+    webdav.getFileInfo.mockResolvedValue(
+      mock({
+        fileId: 'owner$space!file-1',
+        id: 'owner$space!file-1',
+        name: 'Plan.md',
+        path: '/Plan.md',
+        isFolder: false,
+        tags: []
+      })
+    )
+
+    const result = await storage.listThreads([space], {
+      tags: [COMMENT_TAG],
+      status: 'all',
+      answered: 'all',
+      user: 'me',
+      userIds: ['dennis']
+    })
+
+    expect(result.total).toBe(1)
+    expect(result.entries[0]?.target.name).toBe('Plan.md')
+  })
 })

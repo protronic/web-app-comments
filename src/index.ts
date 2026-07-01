@@ -13,6 +13,7 @@ import CommentsPanel from './components/CommentsPanel.vue'
 import { commentMessages as msg } from './i18n/messages'
 import { registerCommentTranslations } from './i18n/registerTranslations'
 import { useCommentGettext } from './i18n/useCommentGettext'
+import { useCommentNotifications } from './composables/useCommentNotifications'
 
 const applicationId = 'comments'
 
@@ -22,6 +23,7 @@ export default defineWebApplication({
 
     const { $gettext } = useCommentGettext()
     const userStore = useUserStore()
+    useCommentNotifications()
     const sidebarExtensions = useExtensions()
 
     const routes = [

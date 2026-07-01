@@ -12,6 +12,7 @@ import { userRecordToAuthor, collectUserIdentityKeys } from '../utils/userIdenti
 import { CommentAuthor, CommentStorage, CommentTarget, CommentThread } from '../types'
 import { WebdavSidecarCommentStorage } from '../storage/WebdavSidecarCommentStorage'
 import { sortThreads } from '../utils/comments'
+import { ensureCommentNotificationListener } from './useCommentNotifications'
 
 export function useComments(target: () => CommentTarget | null) {
   const { $gettext } = useCommentGettext()
@@ -20,10 +21,10 @@ export function useComments(target: () => CommentTarget | null) {
   const { webdav } = clientService
   const capabilityStore = useCapabilityStore()
   const userStore = useUserStore()
-  const storage: CommentStorage = new WebdavSidecarCommentStorage(
-    webdav,
-    clientService.graphAuthenticated.tags
-  )
+  const storage: CommentStorage = new WebdavSidecarCommentStorage(webdav, {
+    tags: clientService.graphAuthenticated.tags,
+    permissions: clientService.graphAuthenticated.permissions
+  })
 
   const threads = ref<CommentThread[]>([])
   const isLoading = ref(false)
@@ -37,6 +38,8 @@ export function useComments(target: () => CommentTarget | null) {
   const currentUserIds = computed(() =>
     collectUserIdentityKeys((userStore.user || undefined) as Record<string, unknown>)
   )
+
+  ensureCommentNotificationListener()
 
   const loadComments = async () => {
     const currentTarget = target()

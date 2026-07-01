@@ -3,6 +3,7 @@ import { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { mock } from 'vitest-mock-extended'
 import { COMMENT_TAG } from '../../src/constants/tags'
 import { CommentTagsGraphClient } from '../../src/utils/commentTags'
+import { SidecarPermissionsGraphClient } from '../../src/utils/sidecarPermissions'
 import { WebdavSidecarCommentStorage } from '../../src/storage/WebdavSidecarCommentStorage'
 import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
 import {
@@ -40,7 +41,7 @@ describe('webdav sidecar comments', () => {
 
   it('assigns the commented tag when creating a thread', async () => {
     const webdav = mock<WebDAV>()
-    const graph = mock<CommentTagsGraphClient>()
+    const graph = mock<CommentTagsGraphClient & SidecarPermissionsGraphClient>()
     const target = createCommentTarget(
       space,
       mock<Resource>({
@@ -63,6 +64,53 @@ describe('webdav sidecar comments', () => {
       resourceId: 'owner$space!file-1',
       tags: [COMMENT_TAG]
     })
+  })
+
+  it('syncs source file shares to the sidecar after saving', async () => {
+    const webdav = mock<WebDAV>()
+    const graph = mock<CommentTagsGraphClient & SidecarPermissionsGraphClient>()
+    graph.permissions = {
+      listPermissions: vi.fn().mockResolvedValue({ shares: [], allowedActions: [], allowedRoles: [] }),
+      listRoleDefinitions: vi.fn().mockResolvedValue([]),
+      createInvite: vi.fn(),
+      createLink: vi.fn(),
+      updatePermission: vi.fn()
+    }
+
+    const target = createCommentTarget(
+      space,
+      mock<Resource>({
+        fileId: 'owner$space!source-file',
+        name: 'README.md',
+        path: '/README.md',
+        isFolder: false
+      })
+    )
+    const storage = new WebdavSidecarCommentStorage(webdav, graph)
+    webdav.getFileContents.mockRejectedValue({ status: 404 })
+    webdav.putFileContents.mockResolvedValue({
+      fileId: 'owner$space!sidecar-file',
+      id: 'owner$space!sidecar-file',
+      name: '.README.md.jsco',
+      path: '/.README.md.jsco'
+    } as never)
+
+    await storage.createThread(target, {
+      body: 'Hello',
+      format: 'markdown',
+      author: { id: 'marie', displayName: 'Marie' }
+    })
+
+    expect(graph.permissions.listPermissions).toHaveBeenCalledWith(
+      'owner$space',
+      'owner$space!source-file',
+      {}
+    )
+    expect(graph.permissions.listPermissions).toHaveBeenCalledWith(
+      'owner$space',
+      'owner$space!sidecar-file',
+      {}
+    )
   })
 
   it('creates a new thread when no sidecar file exists yet', async () => {

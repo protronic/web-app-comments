@@ -18,6 +18,9 @@ export const commentMessages = {
   files: 'Files',
   folder: 'Folder',
   folders: 'Folders',
+  individualShareCommentWarningDesc:
+    'Comments on individually shared files use a separate .jsco sidecar file. Mentions and notifications may not reach recipients reliably. Prefer sharing a folder or using a project space instead.',
+  individualShareCommentWarningTitle: 'Individual file share',
   lastReplyBy: 'Last reply by %{author} · %{date}',
   loadingCommentDashboard: 'Loading comment dashboard',
   loadingComments: 'Loading comments',
@@ -26,6 +29,7 @@ export const commentMessages = {
   mentionTypeToSearch: 'Type a name to search users.',
   mentionNoResults: 'No users found.',
   me: 'Me',
+  mentionNotificationTitle: '%{author} mentioned you in %{resource}',
   noMatchingThreads: 'No comment threads match the current filters.',
   noCommentsYet: 'No comments yet. Start the discussion above.',
   noRepliesYet: 'No replies yet',
