@@ -1,18 +1,28 @@
-import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import {
   useCapabilityStore,
   useClientService,
   useMessages,
   useUserStore
 } from '@opencloud-eu/web-pkg'
-import { MESSAGE_TYPE } from '@opencloud-eu/web-client/sse'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { commentMessages as msg } from '../i18n/messages'
 import { userRecordToAuthor, collectUserIdentityKeys } from '../utils/userIdentity'
 import { CommentAuthor, CommentStorage, CommentTarget, CommentThread } from '../types'
 import { WebdavSidecarCommentStorage } from '../storage/WebdavSidecarCommentStorage'
 import { sortThreads } from '../utils/comments'
+import {
+  COMMENT_SSE_EVENT_TYPES,
+  countActiveComments,
+  parseCommentSsePayload,
+  resolveCommentSidecarFileIds,
+  sseEventMatchesCommentTarget
+} from '../utils/commentSse'
 import { ensureCommentNotificationListener } from './useCommentNotifications'
+
+type LoadCommentsOptions = {
+  silent?: boolean
+}
 
 export function useComments(target: () => CommentTarget | null) {
   const { $gettext } = useCommentGettext()
@@ -28,8 +38,12 @@ export function useComments(target: () => CommentTarget | null) {
 
   const threads = ref<CommentThread[]>([])
   const isLoading = ref(false)
+  const isRefreshing = ref(false)
+  const hasLoadedOnce = ref(false)
   const isSaving = ref(false)
   const error = ref<string>()
+  const watchedFileIds = ref<Set<string>>(new Set())
+  const scrollToLatest = ref(false)
 
   const currentUser = computed<CommentAuthor>(() =>
     userRecordToAuthor((userStore.user || {}) as Record<string, unknown>)
@@ -41,24 +55,47 @@ export function useComments(target: () => CommentTarget | null) {
 
   ensureCommentNotificationListener()
 
-  const loadComments = async () => {
+  const refreshWatchedFileIds = async (currentTarget: CommentTarget) => {
+    watchedFileIds.value = await resolveCommentSidecarFileIds(webdav, currentTarget)
+  }
+
+  const loadComments = async (options: LoadCommentsOptions = {}) => {
     const currentTarget = target()
 
     if (!currentTarget) {
       threads.value = []
+      hasLoadedOnce.value = false
+      watchedFileIds.value = new Set()
       return
     }
 
-    isLoading.value = true
+    const silent = options.silent && hasLoadedOnce.value
+    const previousCount = countActiveComments(threads.value)
+
+    if (silent) {
+      isRefreshing.value = true
+    } else {
+      isLoading.value = true
+    }
+
     error.value = undefined
 
     try {
-      threads.value = await storage.list(currentTarget)
+      await refreshWatchedFileIds(currentTarget)
+      const nextThreads = sortThreads(await storage.list(currentTarget))
+      const nextCount = countActiveComments(nextThreads)
+
+      scrollToLatest.value = silent && nextCount > previousCount
+      threads.value = nextThreads
+      hasLoadedOnce.value = true
     } catch (e) {
-      error.value = $gettext(msg.failedToLoadComments)
-      showErrorMessage({ title: error.value, errors: [e] })
+      if (!silent) {
+        error.value = $gettext(msg.failedToLoadComments)
+        showErrorMessage({ title: error.value, errors: [e] })
+      }
     } finally {
       isLoading.value = false
+      isRefreshing.value = false
     }
   }
 
@@ -116,7 +153,10 @@ export function useComments(target: () => CommentTarget | null) {
 
     try {
       await mutation(currentTarget)
+      await refreshWatchedFileIds(currentTarget)
       threads.value = sortThreads(await storage.list(currentTarget))
+      hasLoadedOnce.value = true
+      scrollToLatest.value = true
     } catch (e) {
       error.value = $gettext(msg.failedToSaveComment)
       showErrorMessage({ title: error.value, errors: [e] })
@@ -125,60 +165,98 @@ export function useComments(target: () => CommentTarget | null) {
     }
   }
 
-  const onCommentTargetTouched = (msg: MessageEvent) => {
-    const data = parseSsePayload(msg)
+  const sseHandlers = new Map<string, (message: MessageEvent) => void>()
 
-    if (data?.initiatorid === clientService.initiatorId) {
+  const onCommentResourceChanged = (message: MessageEvent) => {
+    const currentTarget = target()
+
+    if (!currentTarget) {
       return
     }
 
-    return loadComments()
+    const data = parseCommentSsePayload(message)
+
+    if (!data?.itemid || data.initiatorid === clientService.initiatorId) {
+      return
+    }
+
+    if (!sseEventMatchesCommentTarget(data, watchedFileIds.value)) {
+      return
+    }
+
+    void loadComments({ silent: true })
+  }
+
+  const registerSse = () => {
+    if (!capabilityStore.supportSSE) {
+      return
+    }
+
+    for (const eventType of COMMENT_SSE_EVENT_TYPES) {
+      if (sseHandlers.has(eventType)) {
+        continue
+      }
+
+      const handler = (message: MessageEvent) => {
+        onCommentResourceChanged(message)
+      }
+
+      sseHandlers.set(eventType, handler)
+      clientService.sseAuthenticated.addEventListener(eventType, handler)
+    }
+  }
+
+  const unregisterSse = () => {
+    for (const [eventType, handler] of sseHandlers) {
+      clientService.sseAuthenticated.removeEventListener(eventType, handler)
+    }
+
+    sseHandlers.clear()
   }
 
   onMounted(() => {
-    if (!capabilityStore.supportSSE) {
-      return
-    }
-
-    clientService.sseAuthenticated.addEventListener(
-      MESSAGE_TYPE.FILE_TOUCHED,
-      onCommentTargetTouched
-    )
+    registerSse()
   })
 
   onBeforeUnmount(() => {
-    if (!capabilityStore.supportSSE) {
+    unregisterSse()
+  })
+
+  watch(
+    target,
+    () => {
+      hasLoadedOnce.value = false
+      scrollToLatest.value = false
+      void loadComments()
+    },
+    { immediate: true }
+  )
+
+  const consumeScrollToLatest = async (container: HTMLElement | undefined) => {
+    if (!scrollToLatest.value || !container) {
       return
     }
 
-    clientService.sseAuthenticated.removeEventListener(
-      MESSAGE_TYPE.FILE_TOUCHED,
-      onCommentTargetTouched
-    )
-  })
-
-  watch(target, () => loadComments(), { immediate: true })
+    scrollToLatest.value = false
+    await nextTick()
+    container.scrollTop = container.scrollHeight
+  }
 
   return {
     threads,
     isLoading,
+    isRefreshing,
+    hasLoadedOnce,
     isSaving,
     error,
     currentUser,
     currentUserIds,
     loadComments,
+    consumeScrollToLatest,
     createThread,
     replyToThread,
     updateComment,
     deleteComment,
     setThreadResolved
-  }
-}
-
-function parseSsePayload(msg: MessageEvent): { initiatorid?: string } | null {
-  try {
-    return JSON.parse(msg.data)
-  } catch {
-    return null
   }
 }

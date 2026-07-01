@@ -1,5 +1,5 @@
 <template>
-  <aside class="ext:flex ext:h-full ext:flex-col ext:gap-4 ext:p-4">
+  <aside class="ext:flex ext:h-full ext:flex-col ext:gap-3 ext:p-4">
     <p
       v-if="selectedResource"
       class="ext:m-0 ext:text-sm ext:text-role-on-surface-variant"
@@ -28,42 +28,45 @@
         </p>
       </div>
 
-      <CommentForm
-        :key="commentTarget.id"
-        :submit-label="$gettext(msg.comment)"
-        :placeholder="$gettext(msg.writeComment)"
-        :disabled="isSaving"
-        @submit="createThread"
-      />
-
-      <p class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant">
-        {{ $gettext(msg.prototypeStorage) }}
+      <p
+        v-if="isRefreshing"
+        class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant"
+        aria-live="polite"
+      >
+        {{ $gettext(msg.refreshingComments) }}
       </p>
 
-      <div v-if="isLoading" class="ext:flex ext:flex-1 ext:items-center ext:justify-center">
+      <div
+        v-if="isLoading && !hasLoadedOnce"
+        class="ext:flex ext:flex-1 ext:items-center ext:justify-center"
+      >
         <oc-spinner size="small" :aria-label="$gettext(msg.loadingComments)" />
       </div>
 
       <div
-        v-else-if="error"
+        v-else-if="error && !hasLoadedOnce"
         class="ext:flex ext:flex-1 ext:flex-col ext:items-center ext:justify-center ext:gap-3 ext:text-center"
       >
         <p class="ext:m-0 ext:text-sm ext:text-role-error">
           {{ error }}
         </p>
-        <oc-button appearance="outline" size="small" @click="loadComments">
+        <oc-button appearance="outline" size="small" @click="loadComments()">
           {{ $gettext(msg.retry) }}
         </oc-button>
       </div>
 
       <div
-        v-else-if="threads.length === 0"
-        class="ext:flex ext:flex-1 ext:items-center ext:justify-center ext:text-center ext:text-sm ext:text-role-on-surface-variant"
+        v-else
+        ref="threadScroller"
+        class="ext:flex ext:min-h-0 ext:flex-1 ext:flex-col ext:gap-3 ext:overflow-y-auto"
       >
-        {{ $gettext(msg.noCommentsYet) }}
-      </div>
+        <div
+          v-if="threads.length === 0"
+          class="ext:flex ext:flex-1 ext:items-center ext:justify-center ext:text-center ext:text-sm ext:text-role-on-surface-variant"
+        >
+          {{ $gettext(msg.noCommentsYet) }}
+        </div>
 
-      <div v-else class="ext:flex ext:flex-1 ext:flex-col ext:gap-3 ext:overflow-y-auto">
         <CommentThread
           v-for="thread in threads"
           :key="thread.id"
@@ -76,12 +79,26 @@
           @set-resolved="setThreadResolved"
         />
       </div>
+
+      <div class="ext:mt-auto ext:flex ext:flex-col ext:gap-2 ext:border-t ext:border-role-outline-variant ext:pt-3">
+        <CommentForm
+          :key="commentTarget.id"
+          :submit-label="$gettext(msg.comment)"
+          :placeholder="$gettext(msg.writeComment)"
+          :disabled="isSaving || (isLoading && !hasLoadedOnce)"
+          @submit="createThread"
+        />
+
+        <p class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant">
+          {{ $gettext(msg.prototypeStorage) }}
+        </p>
+      </div>
     </template>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { computed, unref } from 'vue'
+import { computed, ref, unref, watch } from 'vue'
 import { Resource } from '@opencloud-eu/web-client'
 import { createCommentTarget, resolveSidebarSpace } from '../utils/target'
 import { useComments } from '../composables/useComments'
@@ -99,6 +116,8 @@ ensureCommentNotificationListener()
 const { panelContext } = defineProps<{
   panelContext: Record<string, any>
 }>()
+
+const threadScroller = ref<HTMLElement | null>(null)
 
 const selectedResource = computed<Resource | null>(() => {
   const items = unref(panelContext?.items)
@@ -131,15 +150,21 @@ const { showIndividualShareHint } = useIndividualShareCommentHint(
 const {
   threads,
   isLoading,
+  isRefreshing,
+  hasLoadedOnce,
   isSaving,
   error,
-  currentUser,
   currentUserIds,
   loadComments,
+  consumeScrollToLatest,
   createThread,
   replyToThread,
   updateComment,
   deleteComment,
   setThreadResolved
 } = useComments(() => unref(commentTarget))
+
+watch([threads, isRefreshing], () => {
+  void consumeScrollToLatest(threadScroller.value ?? undefined)
+})
 </script>

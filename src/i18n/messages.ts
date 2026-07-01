@@ -24,6 +24,7 @@ export const commentMessages = {
   lastReplyBy: 'Last reply by %{author} · %{date}',
   loadingCommentDashboard: 'Loading comment dashboard',
   loadingComments: 'Loading comments',
+  refreshingComments: 'Updating comments…',
   markdownSupported: 'Markdown is supported.',
   mentionHint: 'Type @ to mention someone.',
   mentionTypeToSearch: 'Type a name to search users.',
