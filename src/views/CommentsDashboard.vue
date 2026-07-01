@@ -165,9 +165,10 @@
 
 <script setup lang="ts">
 import { unref } from 'vue'
-import { createLocationSpaces, useRouter, useSpacesStore } from '@opencloud-eu/web-pkg'
+import { useRouter, useSpacesStore } from '@opencloud-eu/web-pkg'
 import { DashboardThreadEntry } from '../types'
 import { getThreadTitleLine } from '../utils/comments'
+import { buildOpenTargetLocation } from '../utils/dashboardNavigation'
 import { useCommentsDashboard } from '../composables/useCommentsDashboard'
 import { commentMessages as msg } from '../i18n/messages'
 import { useCommentGettext } from '../i18n/useCommentGettext'
@@ -245,19 +246,6 @@ function openTarget(entry: DashboardThreadEntry) {
     return
   }
 
-  const routeName =
-    entry.space.driveType === 'project' ? 'files-spaces-projects' : 'files-spaces-generic'
-  const path =
-    entry.target.resourceType === 'space' || entry.target.path === '/'
-      ? ''
-      : entry.target.path
-
-  void router.push(
-    createLocationSpaces(routeName, {
-      params: {
-        driveAliasAndItem: space.getDriveAliasAndItem({ path })
-      }
-    })
-  )
+  void router.push(buildOpenTargetLocation(space, entry))
 }
 </script>
