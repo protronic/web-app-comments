@@ -209,7 +209,7 @@ describe('comments dashboard api helpers', () => {
 
     expect(filterDashboardEntries(entries, { type: 'folder' })).toHaveLength(1)
     expect(filterDashboardEntries(entries, { type: 'space' })).toHaveLength(1)
-    expect(filterDashboardEntries(entries, { tag: 'review' })).toHaveLength(1)
+    expect(filterDashboardEntries(entries, { tags: ['review'] })).toHaveLength(1)
   })
 
   it('applies pagination after filtering and sorting', () => {

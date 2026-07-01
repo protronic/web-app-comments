@@ -1,4 +1,4 @@
-import { SpaceResource, urlJoin } from '@opencloud-eu/web-client'
+import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import {
   CommentDocument,
@@ -6,9 +6,12 @@ import {
   CommentsDashboardQuery,
   CommentsDashboardResult
 } from '../types'
+import { COMMENT_TAG } from '../constants/tags'
+import { buildTagSearchPattern } from '../utils/commentTags'
 import { buildDashboardEntries, queryDashboardEntries } from '../utils/dashboard'
-import { CommentDocumentRef, mapFallbackTargetSummary, resolveCommentDocumentTargets } from '../utils/resolveTarget'
-import { COMMENTS_FOLDER_NAME } from '../utils/target'
+import { findSpaceForSearchResource } from '../utils/dashboardSearch'
+import { resolveCommentDocumentTarget } from '../utils/resolveTarget'
+import { createCommentTarget, getCommentDocumentPath } from '../utils/target'
 
 export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
   public constructor(private readonly webdav: WebDAV) {}
@@ -18,99 +21,52 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
     query: CommentsDashboardQuery = {}
   ): Promise<CommentsDashboardResult> {
     const entries = []
+    const searchTags = query.tags?.length ? query.tags : [COMMENT_TAG]
+    const pattern = buildTagSearchPattern(searchTags)
 
-    for (const space of spaces) {
+    let resources: Resource[] = []
+
+    try {
+      const result = await this.webdav.search(pattern, { searchLimit: 5000 })
+      resources = result.resources
+    } catch {
+      return queryDashboardEntries([], query)
+    }
+
+    for (const resource of resources) {
+      const space = findSpaceForSearchResource(spaces, resource)
+
+      if (!space) {
+        continue
+      }
+
+      if (query.spaceId && space.id !== query.spaceId) {
+        continue
+      }
+
       try {
-        const refs = await this.collectDocuments(space)
-        const resolvedTargets = await resolveCommentDocumentTargets(this.webdav, space, refs)
+        const target = createCommentTarget(space, resource)
+        const sidecarPath = getCommentDocumentPath(target)
+        const document = await this.loadDocument(space, sidecarPath)
 
-        for (const ref of refs) {
-          const target =
-            resolvedTargets.get(ref.document.target.id) ||
-            mapFallbackTargetSummary(ref.document.target, space)
-
-          entries.push(...buildDashboardEntries(space, ref.document, target))
+        if (document.threads.length === 0) {
+          continue
         }
+
+        const resolvedTarget = await resolveCommentDocumentTarget(
+          this.webdav,
+          space,
+          document,
+          sidecarPath
+        )
+
+        entries.push(...buildDashboardEntries(space, document, resolvedTarget))
       } catch {
-        // Skip spaces that cannot be scanned instead of failing the whole dashboard.
         continue
       }
     }
 
     return queryDashboardEntries(entries, query)
-  }
-
-  private async collectDocuments(space: SpaceResource): Promise<CommentDocumentRef[]> {
-    const refs: CommentDocumentRef[] = []
-    await this.walkDirectory(space, '/', refs)
-    return refs
-  }
-
-  private async walkDirectory(
-    space: SpaceResource,
-    path: string,
-    refs: CommentDocumentRef[]
-  ): Promise<void> {
-    await this.tryLoadCommentsAtContainer(space, path, refs)
-
-    let result
-
-    try {
-      result = await this.webdav.listFiles(space, { path }, { depth: 1 })
-    } catch (error) {
-      if (isNotFoundError(error)) {
-        return
-      }
-
-      throw error
-    }
-
-    for (const child of result.children || []) {
-      if (!child.isFolder || child.name === '.conflu' || child.name.startsWith('.')) {
-        continue
-      }
-
-      await this.walkDirectory(space, child.path || urlJoin(path, child.name), refs)
-    }
-  }
-
-  private async tryLoadCommentsAtContainer(
-    space: SpaceResource,
-    containerPath: string,
-    refs: CommentDocumentRef[]
-  ): Promise<void> {
-    const commentsPath = urlJoin(containerPath, COMMENTS_FOLDER_NAME)
-
-    try {
-      await this.loadDocumentsFromCommentsPath(space, commentsPath, refs)
-    } catch (error) {
-      if (isNotFoundError(error)) {
-        return
-      }
-
-      throw error
-    }
-  }
-
-  private async loadDocumentsFromCommentsPath(
-    space: SpaceResource,
-    commentsPath: string,
-    refs: CommentDocumentRef[]
-  ): Promise<void> {
-    const result = await this.webdav.listFiles(space, { path: commentsPath }, { depth: 1 })
-
-    for (const file of result.children || []) {
-      if (file.isFolder || !file.name.endsWith('.json')) {
-        continue
-      }
-
-      const sidecarPath = file.path || urlJoin(commentsPath, file.name)
-      const document = await this.loadDocument(space, sidecarPath)
-
-      if (document.threads.length > 0) {
-        refs.push({ document, sidecarPath })
-      }
-    }
   }
 
   private async loadDocument(space: SpaceResource, path: string): Promise<CommentDocument> {
@@ -141,17 +97,4 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       threads: document.threads
     }
   }
-}
-
-function isNotFoundError(error: unknown): boolean {
-  const responseStatus = (
-    error as { status?: number; statusCode?: number; response?: { status?: number } }
-  )?.response?.status
-  const statusCode =
-    responseStatus ||
-    (error as { status?: number; statusCode?: number })?.status ||
-    (error as { status?: number; statusCode?: number })?.statusCode
-  const message = (error as Error)?.message || ''
-
-  return statusCode === 404 || message.includes('404') || message.includes('Not Found')
 }

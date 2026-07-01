@@ -35,7 +35,7 @@ const result = await api.listThreads(spaces, {
 | `status` | `all`, `open`, `resolved` | Thread resolve state |
 | `answered` | `all`, `answered`, `unanswered` | Whether the thread has at least one reply |
 | `type` | `all`, `file`, `folder`, `space` | OpenCloud resource type from WebDAV |
-| `tag` | `all`, tag name | Requires the target resource to have the tag assigned |
+| `tags` | tag names | Default: `Kommentiert`. Uses WebDAV search (`tag:…`) to find candidate resources before loading sidecars |
 | `spaceId` | space id | Restrict to one space |
 | `limit` | number | Page size after filtering |
 | `offset` | number | Pagination offset after filtering |
@@ -76,20 +76,12 @@ interface DashboardThreadEntry {
 }
 ```
 
-Target `name`, `path`, `resourceType`, `mimeType`, and `tags` are resolved from WebDAV at load time. Available tag names for the UI filter come from the Graph tags API (`/v1.0/extensions/org.libregraph/tags`).
-
-## UI
-
-The extension registers:
-
-- App menu item: **Comment dashboard**
-- Route: `/comments/dashboard`
-
-Filters in the UI map directly to the query fields above.
+Target `name`, `path`, `resourceType`, `mimeType`, and `tags` are resolved from WebDAV at load time. Available tag names for the UI filter come from the Graph tags API (`/v1.0/extensions/org.libregraph/tags`). Commented resources are tagged automatically with `Kommentiert` when a sidecar is saved.
 
 ## Notes
 
 - This MVP reads sidecar files client-side via WebDAV. A future native comments API can expose the same query contract server-side.
-The dashboard uses all accessible drives: personal space, project spaces, and mount points. Virtual drives such as the aggregated Shares view are skipped.
+- The dashboard discovers candidate resources through WebDAV search using the selected tags instead of recursively scanning every folder.
+- The dashboard uses all accessible drives: personal space, project spaces, and mount points. Virtual drives such as the aggregated Shares view are skipped.
+- Existing comment sidecars receive the `Kommentiert` tag when their resource is opened in the sidebar or when a comment is saved again.
 
-Scanning explicitly probes `{folder}/.conflu/comments/` in every visited directory, because hidden dot folders are often omitted from WebDAV listings.

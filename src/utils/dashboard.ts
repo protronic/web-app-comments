@@ -101,8 +101,12 @@ export function filterDashboardEntries(
       return false
     }
 
-    if (query.tag && query.tag !== 'all' && !entry.target.tags.includes(query.tag)) {
-      return false
+    if (query.tags && query.tags.length > 0) {
+      const selectedTags = query.tags
+
+      if (!selectedTags.every((tag) => entry.target.tags.includes(tag))) {
+        return false
+      }
     }
 
     return true

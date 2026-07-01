@@ -72,7 +72,7 @@ export interface CommentsDashboardQuery {
   status?: DashboardStatusFilter
   answered?: DashboardAnsweredFilter
   type?: DashboardTypeFilter
-  tag?: string
+  tags?: string[]
   spaceId?: string
   limit?: number
   offset?: number

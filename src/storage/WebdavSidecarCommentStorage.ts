@@ -16,10 +16,18 @@ import {
   sortThreads,
   touchThread
 } from '../utils/comments'
-import { getCommentDirectoryPath, getCommentDocumentPath, syncCommentDocumentTarget } from '../utils/target'
+import { CommentTagsGraphClient, syncCommentedTag } from '../utils/commentTags'
+import {
+  getCommentDirectoryPath,
+  getCommentDocumentPath,
+  syncCommentDocumentTarget
+} from '../utils/target'
 
 export class WebdavSidecarCommentStorage implements CommentStorage {
-  public constructor(private readonly webdav: WebDAV) {}
+  public constructor(
+    private readonly webdav: WebDAV,
+    private readonly graph?: CommentTagsGraphClient
+  ) {}
 
   public async list(target: CommentTarget): Promise<CommentThread[]> {
     const document = await this.loadDocument(target)
@@ -123,7 +131,10 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
       const response = await this.webdav.getFileContents(target.space, {
         path: getCommentDocumentPath(target)
       })
-      return normalizeCommentDocument(target, JSON.parse(response.body))
+      const document = normalizeCommentDocument(target, JSON.parse(response.body))
+      await syncCommentedTag(this.graph, target, document)
+
+      return document
     } catch (error) {
       if (isNotFoundError(error)) {
         return createEmptyCommentDocument(target)
@@ -141,6 +152,7 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
       path: getCommentDocumentPath(target),
       content: JSON.stringify(payload, null, 2)
     })
+    await syncCommentedTag(this.graph, target, payload)
   }
 
   private async ensureCommentDirectory(target: CommentTarget): Promise<void> {

@@ -1,7 +1,10 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { mock } from 'vitest-mock-extended'
+import { COMMENT_TAG } from '../../src/constants/tags'
+import { CommentTagsGraphClient } from '../../src/utils/commentTags'
 import { WebdavSidecarCommentStorage } from '../../src/storage/WebdavSidecarCommentStorage'
+import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
 import {
   createCommentTarget,
   getCommentDirectoryPath,
@@ -31,6 +34,33 @@ describe('webdav sidecar comments', () => {
 
     expect(getCommentDirectoryPath(target)).toBe('/handbook/.conflu/comments')
     expect(getCommentDocumentPath(target)).toBe('/handbook/.conflu/comments/file_1_2.json')
+  })
+
+  it('assigns the commented tag when creating a thread', async () => {
+    const webdav = mock<WebDAV>()
+    const graph = mock<CommentTagsGraphClient>()
+    const target = createCommentTarget(
+      space,
+      mock<Resource>({
+        fileId: 'space!file-1',
+        name: 'README.md',
+        path: '/README.md',
+        isFolder: false
+      })
+    )
+    const storage = new WebdavSidecarCommentStorage(webdav, graph)
+    webdav.getFileContents.mockRejectedValue({ status: 404 })
+
+    await storage.createThread(target, {
+      body: 'Hello',
+      format: 'markdown',
+      author: { id: 'marie', displayName: 'Marie' }
+    })
+
+    expect(graph.assignTags).toHaveBeenCalledWith({
+      resourceId: 'space!file-1',
+      tags: [COMMENT_TAG]
+    })
   })
 
   it('creates a new thread when no sidecar file exists yet', async () => {

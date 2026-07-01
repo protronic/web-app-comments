@@ -48,6 +48,7 @@ export const commentMessages = {
   spaces: 'Spaces',
   status: 'Status',
   tag: 'Tag',
+  tags: 'Tags',
   type: 'Type',
   unanswered: 'Unanswered',
   updateComment: 'Update comment',

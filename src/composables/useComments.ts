@@ -19,7 +19,10 @@ export function useComments(target: () => CommentTarget | null) {
   const { webdav } = clientService
   const capabilityStore = useCapabilityStore()
   const userStore = useUserStore()
-  const storage: CommentStorage = new WebdavSidecarCommentStorage(webdav)
+  const storage: CommentStorage = new WebdavSidecarCommentStorage(
+    webdav,
+    clientService.graphAuthenticated.tags
+  )
 
   const threads = ref<CommentThread[]>([])
   const isLoading = ref(false)

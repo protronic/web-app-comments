@@ -2,6 +2,7 @@ import { onMounted, ref, unref, watch } from 'vue'
 import { useClientService, useMessages, useSpacesStore, useUserStore } from '@opencloud-eu/web-pkg'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { commentMessages as msg } from '../i18n/messages'
+import { COMMENT_TAG } from '../constants/tags'
 import { CommentsDashboardQuery, DashboardThreadEntry } from '../types'
 import { WebdavSidecarDashboardStorage } from '../storage/WebdavSidecarDashboardStorage'
 import { loadDashboardSpaces } from '../utils/dashboardSpaces'
@@ -23,16 +24,16 @@ export function useCommentsDashboard() {
     status: 'open',
     answered: 'answered',
     type: 'all',
-    tag: 'all'
+    tags: [COMMENT_TAG]
   })
 
   const loadAvailableTags = async () => {
     try {
-      availableTags.value = [...(await clientService.graphAuthenticated.tags.listTags())].sort(
-        (left, right) => left.localeCompare(right)
-      )
+      const tags = new Set<string>([COMMENT_TAG, ...(await clientService.graphAuthenticated.tags.listTags())])
+
+      availableTags.value = [...tags].sort((left, right) => left.localeCompare(right))
     } catch {
-      availableTags.value = []
+      availableTags.value = [COMMENT_TAG]
     }
   }
 
@@ -76,6 +77,10 @@ export function useCommentsDashboard() {
     query,
     () => {
       if (userStore.user) {
+        if (!query.value.tags?.length) {
+          query.value.tags = [COMMENT_TAG]
+        }
+
         void loadDashboard()
       }
     },

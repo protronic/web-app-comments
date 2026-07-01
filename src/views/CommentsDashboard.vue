@@ -54,18 +54,17 @@
           </select>
         </label>
 
-        <label class="ext:flex ext:flex-col ext:gap-1 ext:text-sm">
-          <span>{{ $gettext(msg.tag) }}</span>
-          <select
-            v-model="query.tag"
-            class="ext:rounded-md ext:border ext:border-role-outline ext:bg-role-surface ext:px-3 ext:py-2"
+        <fieldset class="ext:flex ext:min-w-48 ext:flex-col ext:gap-2 ext:text-sm">
+          <legend class="ext:px-1">{{ $gettext(msg.tags) }}</legend>
+          <label
+            v-for="tag in availableTags"
+            :key="tag"
+            class="ext:flex ext:items-center ext:gap-2 ext:font-normal"
           >
-            <option value="all">{{ $gettext(msg.all) }}</option>
-            <option v-for="tag in availableTags" :key="tag" :value="tag">
-              {{ tag }}
-            </option>
-          </select>
-        </label>
+            <input v-model="query.tags" type="checkbox" :value="tag" />
+            <span>{{ tag }}</span>
+          </label>
+        </fieldset>
       </div>
 
       <p class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant">
