@@ -2,7 +2,7 @@
 
 OpenCloud web extension for discussing files, folders, and spaces. Adds a **sidebar panel** in the Files app and a **comment dashboard** that aggregates threads across all spaces.
 
-Comments are stored as WebDAV sidecar files under `.conflu/comments/` — no native comments API required. The storage layer is abstracted so a future backend can replace it without rewriting the UI.
+Comments are stored as WebDAV sidecar files next to each resource (`.{name}.jsco`) — no native comments API required. The storage layer is abstracted so a future backend can replace it without rewriting the UI.
 
 | | |
 |---|---|
@@ -79,7 +79,7 @@ flowchart LR
   end
 
   subgraph OpenCloud
-    WebDAV[(WebDAV .conflu/comments/*.json)]
+    WebDAV[(WebDAV .{name}.jsco)]
     SSE[SSE file touched]
   end
 
@@ -91,8 +91,12 @@ flowchart LR
 Sidecar layout:
 
 ```
-{space}/{resource-path}/.conflu/comments/{fileId}.json
+{space}/{container}/.{resourceName}.jsco
 ```
+
+Example: `/projects/Plan.md` → `/projects/.Plan.md.jsco`
+
+Legacy sidecars under `{container}/.conflu/comments/{fileId}.json` are still read when present.
 
 Each JSON document contains `threads[]` with `status`, `comments[]`, and a `target` snapshot. The dashboard resolves live names and paths from WebDAV on load.
 
@@ -211,15 +215,16 @@ curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
 ```bash
 curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
   -X PROPFIND \
-  "${OC_HOST}/dav/spaces/${SPACE_ID}/Testordner/.conflu/comments/" \
-  -H 'Depth: 1'
+  "${OC_HOST}/dav/spaces/${SPACE_ID}/Testordner/" \
+  -H 'Depth: 1' \
+  | grep -E '\\.jsco|\\.conflu/comments'
 ```
 
 **Read one sidecar**
 
 ```bash
 curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
-  "${OC_HOST}/dav/spaces/${SPACE_ID}/Testordner/.conflu/comments/${SIDECAR}" \
+  "${OC_HOST}/dav/spaces/${SPACE_ID}/Testordner/.Plan.md.jsco" \
   | jq .
 ```
 

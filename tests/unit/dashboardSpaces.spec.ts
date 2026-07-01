@@ -15,11 +15,12 @@ describe('loadDashboardSpaces', () => {
     vi.mocked(graphClient.drives.listMyDrives).mockResolvedValue([
       mock<SpaceResource>({ id: 'personal', driveType: 'personal', disabled: false }),
       mock<SpaceResource>({ id: 'project', driveType: 'project', disabled: false }),
+      mock<SpaceResource>({ id: 'mount', driveType: 'mountpoint', disabled: false }),
       mock<SpaceResource>({ id: 'virtual', driveType: 'virtual', disabled: false })
     ])
   })
 
-  it('loads personal and project spaces from graph and the store', async () => {
+  it('loads personal, project, and mountpoint spaces from graph and the store', async () => {
     const spaces = ref<SpaceResource[]>([])
 
     const spacesStore = {
@@ -31,7 +32,7 @@ describe('loadDashboardSpaces', () => {
 
     expect(spacesStore.loadSpaces).toHaveBeenCalledWith({ graphClient })
     expect(graphClient.drives.listMyDrives).toHaveBeenCalled()
-    expect(result.map((space) => space.id).sort()).toEqual(['personal', 'project'])
+    expect(result.map((space) => space.id).sort()).toEqual(['mount', 'personal', 'project'])
   })
 
   it('merges matching spaces from the store', async () => {
@@ -48,7 +49,7 @@ describe('loadDashboardSpaces', () => {
     const result = await loadDashboardSpaces(spacesStore as never, graphClient)
 
     expect(spacesStore.loadSpaces).not.toHaveBeenCalled()
-    expect(result.map((space) => space.id).sort()).toEqual(['personal', 'project'])
+    expect(result.map((space) => space.id).sort()).toEqual(['mount', 'personal', 'project'])
   })
 
   it('reuses already loaded spaces from the store', async () => {

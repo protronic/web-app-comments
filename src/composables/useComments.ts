@@ -10,7 +10,7 @@ import { useCommentGettext } from '../i18n/useCommentGettext'
 import { commentMessages as msg } from '../i18n/messages'
 import { userRecordToAuthor, collectUserIdentityKeys } from '../utils/userIdentity'
 import { CommentAuthor, CommentStorage, CommentTarget, CommentThread } from '../types'
-import { WebdavPropertyCommentStorage } from '../storage/WebdavPropertyCommentStorage'
+import { WebdavSidecarCommentStorage } from '../storage/WebdavSidecarCommentStorage'
 import { sortThreads } from '../utils/comments'
 
 export function useComments(target: () => CommentTarget | null) {
@@ -20,9 +20,8 @@ export function useComments(target: () => CommentTarget | null) {
   const { webdav } = clientService
   const capabilityStore = useCapabilityStore()
   const userStore = useUserStore()
-  const storage: CommentStorage = new WebdavPropertyCommentStorage(
+  const storage: CommentStorage = new WebdavSidecarCommentStorage(
     webdav,
-    clientService.httpAuthenticated,
     clientService.graphAuthenticated.tags
   )
 

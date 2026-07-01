@@ -2,7 +2,7 @@
 
 import { buildSpace, webdav } from '@opencloud-eu/web-client'
 import { COMMENT_TAG } from '../../src/constants/tags'
-import { WebdavPropertyDashboardStorage } from '../../src/storage/WebdavPropertyDashboardStorage'
+import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
 
 const LIVE = process.env.LIVE_DASHBOARD === '1'
 
@@ -21,7 +21,7 @@ describe.runIf(LIVE)('dashboard target resolution', () => {
       .filter((drive) => drive.driveType === 'personal' || drive.driveType === 'project')
       .map((drive) => buildSpace({ ...drive, serverUrl: baseUrl } as never))
 
-    const api = new WebdavPropertyDashboardStorage(dav)
+    const api = new WebdavSidecarDashboardStorage(dav)
     const started = Date.now()
     const result = await api.listThreads(spaces, {
       tags: [COMMENT_TAG],

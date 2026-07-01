@@ -1,4 +1,4 @@
-import { Resource, SpaceResource } from '@opencloud-eu/web-client'
+import { Resource, SpaceResource, urlJoin } from '@opencloud-eu/web-client'
 import { CommentDocument, CommentTarget } from '../types'
 
 export function isSpaceResource(item: unknown): item is SpaceResource {
@@ -36,6 +36,14 @@ function unrefMaybe<T>(value: T | (() => T) | { value: T } | undefined): T | und
   return value as T | undefined
 }
 
+/** @deprecated Legacy sidecar folder; new sidecars live next to the target resource. */
+export const COMMENTS_FOLDER_NAME = '.conflu/comments'
+
+export const COMMENT_SIDECAR_SUFFIX = '.jsco'
+
+/** @deprecated Read fallback for sidecars written before the .jsco rename. */
+export const LEGACY_COMMENT_SIDECAR_SUFFIX = '.conflu.json'
+
 export function createCommentTarget(space: SpaceResource, resource: Resource): CommentTarget {
   const path = resource.path || '/'
 
@@ -69,6 +77,77 @@ export function getCommentContainerPath(resource: Resource): string {
   return path.slice(0, index)
 }
 
+export function getCommentSidecarFileName(target: Pick<CommentTarget, 'name' | 'path'>): string {
+  const resourceName = target.name || getNameFromPath(target.path) || 'resource'
+
+  return `.${resourceName}${COMMENT_SIDECAR_SUFFIX}`
+}
+
+export function getCommentDocumentPath(target: CommentTarget): string {
+  return urlJoin(target.containerPath, getCommentSidecarFileName(target))
+}
+
+/** @deprecated Read fallback for sidecars created before the sibling-file layout. */
+export function getLegacyCommentDirectoryPath(target: CommentTarget): string {
+  return urlJoin(target.containerPath, COMMENTS_FOLDER_NAME)
+}
+
+/** @deprecated Read fallback for sidecars created before the sibling-file layout. */
+export function getLegacyCommentDocumentPath(target: CommentTarget): string {
+  return urlJoin(getLegacyCommentDirectoryPath(target), `${toSafeFileName(target.id)}.json`)
+}
+
+/** @deprecated Read fallback for sibling sidecars written as .{name}.conflu.json. */
+export function getLegacySiblingCommentDocumentPath(target: CommentTarget): string {
+  return urlJoin(target.containerPath, getLegacyCommentSidecarFileName(target))
+}
+
+export function getLegacyCommentSidecarFileName(
+  target: Pick<CommentTarget, 'name' | 'path'>
+): string {
+  const resourceName = target.name || getNameFromPath(target.path) || 'resource'
+
+  return `.${resourceName}${LEGACY_COMMENT_SIDECAR_SUFFIX}`
+}
+
+export function getCommentSidecarReadPaths(target: CommentTarget): string[] {
+  return [
+    getCommentDocumentPath(target),
+    getLegacySiblingCommentDocumentPath(target),
+    getLegacyCommentDocumentPath(target)
+  ]
+}
+
+export function toSafeFileName(value: string): string {
+  const safeName = value.replace(/[^a-zA-Z0-9._-]/g, '_')
+  return safeName || 'unknown'
+}
+
+export function getSidecarContainerPath(sidecarPath: string): string | undefined {
+  for (const suffix of [COMMENT_SIDECAR_SUFFIX, LEGACY_COMMENT_SIDECAR_SUFFIX]) {
+    if (sidecarPath.endsWith(suffix)) {
+      const index = sidecarPath.lastIndexOf('/')
+
+      if (index < 0) {
+        return undefined
+      }
+
+      return sidecarPath.slice(0, index) || '/'
+    }
+  }
+
+  const marker = '/.conflu/comments/'
+  const index = sidecarPath.indexOf(marker)
+
+  if (index < 0) {
+    return undefined
+  }
+
+  const containerPath = sidecarPath.slice(0, index)
+
+  return containerPath || '/'
+}
+
 export function syncCommentDocumentTarget(
   target: CommentTarget,
   document: CommentDocument
@@ -82,4 +161,10 @@ export function syncCommentDocumentTarget(
       isFolder: target.isFolder
     }
   }
+}
+
+function getNameFromPath(path: string): string | undefined {
+  const segments = path.split('/').filter(Boolean)
+
+  return segments[segments.length - 1]
 }

@@ -4,8 +4,8 @@ import { buildSpace, webdav } from '@opencloud-eu/web-client'
 
 const LIVE = process.env.LIVE_DASHBOARD === '1'
 
-describe.runIf(LIVE)('webdav listFiles exposes .conflu folder', () => {
-  it('lists .conflu in project root and Testordner', async () => {
+describe.runIf(LIVE)('webdav listFiles exposes comment sidecars', () => {
+  it('lists sibling .jsco files next to commented resources', async () => {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
     const baseUrl = 'https://test.oc:9200'
@@ -26,10 +26,14 @@ describe.runIf(LIVE)('webdav listFiles exposes .conflu folder', () => {
     expect(project).toBeDefined()
 
     const projectRoot = await dav.listFiles(project!, { path: '/' }, { depth: 1 })
-    expect(projectRoot.children?.some((child) => child.name === '.conflu')).toBe(true)
+    const projectSidecars =
+      projectRoot.children?.filter((child) => child.name?.endsWith('.jsco')) ?? []
+    expect(projectSidecars.length).toBeGreaterThan(0)
 
     const personalRoot = await dav.listFiles(personal!, { path: '/' }, { depth: 1 })
-    expect(personalRoot.children?.some((child) => child.name === '.conflu')).toBe(false)
+    const personalSidecars =
+      personalRoot.children?.filter((child) => child.name?.endsWith('.jsco')) ?? []
+    expect(personalSidecars.length).toBe(0)
 
     const testordner = personalRoot.children?.find((child) => child.name === 'Testordner')
     expect(testordner).toBeDefined()
@@ -39,6 +43,10 @@ describe.runIf(LIVE)('webdav listFiles exposes .conflu folder', () => {
       { path: testordner!.path || '/Testordner' },
       { depth: 1 }
     )
-    expect(testordnerListing.children?.some((child) => child.name === '.conflu')).toBe(true)
+    const testordnerSidecars =
+      testordnerListing.children?.filter((child) => child.name?.endsWith('.jsco')) ?? []
+    const legacyConfluFolder = testordnerListing.children?.some((child) => child.name === '.conflu')
+
+    expect(testordnerSidecars.length + (legacyConfluFolder ? 1 : 0)).toBeGreaterThan(0)
   })
 })

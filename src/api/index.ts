@@ -1,4 +1,4 @@
-export { WebdavPropertyDashboardStorage } from '../storage/WebdavPropertyDashboardStorage'
+export { WebdavSidecarDashboardStorage } from '../storage/WebdavSidecarDashboardStorage'
 export type {
   CommentsDashboardApi,
   CommentsDashboardQuery,

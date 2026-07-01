@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { buildSpace, webdav } from '@opencloud-eu/web-client'
-import { WebdavPropertyDashboardStorage } from '../../src/storage/WebdavPropertyDashboardStorage'
+import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
 
 const LIVE = process.env.LIVE_DASHBOARD === '1'
 
@@ -20,7 +20,7 @@ describe.runIf(LIVE)('dashboard live against test.oc', () => {
       .filter((drive) => drive.driveType === 'personal' || drive.driveType === 'project')
       .map((drive) => buildSpace({ ...drive, serverUrl: baseUrl } as never))
 
-    const api = new WebdavPropertyDashboardStorage(dav)
+    const api = new WebdavSidecarDashboardStorage(dav)
     const result = await api.listThreads(spaces, { status: 'all', answered: 'all' })
 
     expect(result.total).toBeGreaterThanOrEqual(3)

@@ -1,22 +1,34 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { CommentDocument, DashboardTargetSummary } from '../types'
-import { getStableResourceId } from './target'
+import { getSidecarContainerPath, getStableResourceId } from './target'
 import { isGraphResourceId } from './commentTags'
 
 export interface CommentDocumentRef {
   document: CommentDocument
+  sidecarPath?: string
 }
 
 export async function resolveCommentDocumentTarget(
   webdav: WebDAV,
   space: SpaceResource,
-  document: CommentDocument
+  document: CommentDocument,
+  sidecarPath?: string
 ): Promise<DashboardTargetSummary> {
   const fallback = document.target
+  const containerPath = sidecarPath ? getSidecarContainerPath(sidecarPath) : undefined
 
-  if (isSpaceRootCommentTarget(space, fallback)) {
+  if (isSpaceLevelSidecarTarget(fallback, containerPath)) {
     return mapSpaceRootTargetSummary(fallback, space)
+  }
+
+  if (fallback.isFolder && containerPath && containerPath !== '/') {
+    try {
+      const resource = await webdav.getFileInfo(space, { path: containerPath })
+      return mapResourceToTargetSummary(resource, fallback, space)
+    } catch {
+      // Fall back to the lookups below.
+    }
   }
 
   if (fallback.id) {
@@ -37,7 +49,28 @@ export async function resolveCommentDocumentTarget(
       const resource = await webdav.getFileInfo(space, { path: fallback.path })
       return mapResourceToTargetSummary(resource, fallback, space)
     } catch {
-      // Keep the stored snapshot when the resource no longer exists.
+      // Fall back to sidecar container lookup below.
+    }
+  }
+
+  if (containerPath) {
+    try {
+      const resource = await webdav.getFileInfo(space, { path: containerPath })
+
+      if (fallback.isFolder || resource.isFolder) {
+        return mapResourceToTargetSummary(resource, fallback, space)
+      }
+
+      if (fallback.id) {
+        try {
+          const fileResource = await webdav.getFileInfo(space, { fileId: fallback.id })
+          return mapResourceToTargetSummary(fileResource, fallback, space)
+        } catch {
+          // Keep trying with the sidecar snapshot below.
+        }
+      }
+    } catch {
+      // Keep the sidecar snapshot when the resource no longer exists.
     }
   }
 
@@ -59,7 +92,10 @@ export async function resolveCommentDocumentTargets(
       continue
     }
 
-    resolved.set(targetId, await resolveCommentDocumentTarget(webdav, space, ref.document))
+    resolved.set(
+      targetId,
+      await resolveCommentDocumentTarget(webdav, space, ref.document, ref.sidecarPath)
+    )
   }
 
   return resolved
@@ -74,6 +110,13 @@ export function isSpaceRootCommentTarget(
   }
 
   return target.id === space.id || normalizeResourceId(target.id) === normalizeResourceId(space.id)
+}
+
+function isSpaceLevelSidecarTarget(
+  fallback: CommentDocument['target'],
+  containerPath: string | undefined
+): boolean {
+  return !!containerPath && containerPath === '/' && fallback.isFolder && fallback.path === '/'
 }
 
 function mapSpaceRootTargetSummary(

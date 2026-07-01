@@ -12,21 +12,20 @@ import {
   createCommentMessage,
   createCommentThread,
   createDeletedCommentPlaceholder,
+  createEmptyCommentDocument,
   sortThreads,
   touchThread
 } from '../utils/comments'
 import { CommentTagsGraphClient, syncCommentedTag } from '../utils/commentTags'
 import {
-  CommentPropertyHttpClient,
-  readCommentDocument,
-  writeCommentDocument
-} from '../utils/commentProperty'
-import { syncCommentDocumentTarget } from '../utils/target'
+  getCommentDocumentPath,
+  getCommentSidecarReadPaths,
+  syncCommentDocumentTarget
+} from '../utils/target'
 
-export class WebdavPropertyCommentStorage implements CommentStorage {
+export class WebdavSidecarCommentStorage implements CommentStorage {
   public constructor(
     private readonly webdav: WebDAV,
-    private readonly http: CommentPropertyHttpClient,
     private readonly graph?: CommentTagsGraphClient
   ) {}
 
@@ -128,17 +127,50 @@ export class WebdavPropertyCommentStorage implements CommentStorage {
   }
 
   private async loadDocument(target: CommentTarget): Promise<CommentDocument> {
-    const document = await readCommentDocument(this.webdav, target)
-    await syncCommentedTag(this.graph, this.webdav, target, document)
+    for (const path of getCommentSidecarReadPaths(target)) {
+      try {
+        const response = await this.webdav.getFileContents(target.space, { path })
+        const document = normalizeCommentDocument(target, JSON.parse(response.body))
+        await syncCommentedTag(this.graph, this.webdav, target, document)
 
-    return document
+        return document
+      } catch (error) {
+        if (!isNotFoundError(error)) {
+          throw error
+        }
+      }
+    }
+
+    return createEmptyCommentDocument(target)
   }
 
   private async saveDocument(target: CommentTarget, document: CommentDocument): Promise<void> {
     const payload = syncCommentDocumentTarget(target, document)
 
-    await writeCommentDocument(this.webdav, this.http, target, payload)
+    await this.webdav.putFileContents(target.space, {
+      path: getCommentDocumentPath(target),
+      content: JSON.stringify(payload, null, 2)
+    })
     await syncCommentedTag(this.graph, this.webdav, target, payload)
+  }
+}
+
+function normalizeCommentDocument(target: CommentTarget, value: unknown): CommentDocument {
+  const document = value as Partial<CommentDocument>
+
+  if (!document || document.version !== 1 || !Array.isArray(document.threads)) {
+    return createEmptyCommentDocument(target)
+  }
+
+  return {
+    version: 1,
+    target: {
+      id: target.id,
+      name: target.name,
+      path: target.path,
+      isFolder: target.isFolder
+    },
+    threads: document.threads
   }
 }
 
@@ -160,4 +192,17 @@ function findComment(thread: CommentThread, commentId: string) {
   }
 
   return comment
+}
+
+function isNotFoundError(error: unknown): boolean {
+  const responseStatus = (
+    error as { status?: number; statusCode?: number; response?: { status?: number } }
+  )?.response?.status
+  const statusCode =
+    responseStatus ||
+    (error as { status?: number; statusCode?: number })?.status ||
+    (error as { status?: number; statusCode?: number })?.statusCode
+  const message = (error as Error)?.message || ''
+
+  return statusCode === 404 || message.includes('404') || message.includes('Not Found')
 }

@@ -16,7 +16,7 @@
         {{ $gettext(msg.allThreadsDescription) }}
       </p>
 
-      <div class="ext:flex ext:flex-wrap ext:gap-4">
+      <div class="ext:flex ext:flex-wrap ext:items-end ext:gap-4">
         <label class="ext:flex ext:flex-col ext:gap-1 ext:text-sm">
           <span>{{ $gettext(msg.status) }}</span>
           <select
@@ -76,6 +76,15 @@
             <span>{{ tag }}</span>
           </label>
         </fieldset>
+
+        <oc-button
+          appearance="outline"
+          size="small"
+          :disabled="isLoading || !filtersActive"
+          @click="resetFilters"
+        >
+          {{ $gettext(msg.clearFilters) }}
+        </oc-button>
       </div>
 
       <p class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant">
@@ -189,7 +198,8 @@ const { $gettext, current: currentLanguage } = useCommentGettext()
 const router = useRouter()
 const spacesStore = useSpacesStore()
 const { getDefaultAction, triggerDefaultAction } = useFileActions()
-const { entries, total, isLoading, error, availableTags, query, loadDashboard } = useCommentsDashboard()
+const { entries, total, isLoading, error, availableTags, query, filtersActive, resetFilters, loadDashboard } =
+  useCommentsDashboard()
 
 function getEntryTitle(entry: DashboardThreadEntry): string {
   const preview = getThreadTitleLine(entry.thread)

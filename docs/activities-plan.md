@@ -1,6 +1,6 @@
 # Comments in Aktivitäten – Problem & Anregungen
 
-Stand: Sidecar-MVP schreibt nach `.conflu/comments/{fileId}.json`. OpenCloud Activitylog protokolliert das als normale Datei-Operation.
+Stand: Sidecar-MVP schreibt nach `.{resourceName}.jsco` neben der Ziel-Ressource (z. B. `/projects/.Plan.md.jsco`). Legacy-Pfade unter `.conflu/comments/` werden beim Lesen noch unterstützt. OpenCloud Activitylog protokolliert Sidecar-PUTs als normale Datei-Operation.
 
 ## Was Nutzer heute sehen
 
@@ -39,8 +39,8 @@ Deep-Link: Datei/Ordner öffnen, Sidebar Comments, optional Thread fokussieren.
 
 | Wo | Wie |
 |----|-----|
-| **Server (ideal)** | Activitylog filtert Pfade `**/.conflu/comments/**` (Feature/Config in OpenCloud – ggf. Issue an `opencloud-eu/opencloud`) |
-| **Web-Extension** | Hook in der Activities-App: Einträge verwerfen, wenn `resource.path` oder `name` auf `.conflu/comments/` passt |
+| **Server (ideal)** | Activitylog filtert Pfade `**/*.jsco` und legacy `**/.conflu/comments/**` (Feature/Config in OpenCloud – ggf. Issue an `opencloud-eu/opencloud`) |
+| **Web-Extension** | Hook in der Activities-App: Einträge verwerfen, wenn `resource.name` auf `.jsco` endet oder `resource.path` auf `.conflu/comments/` passt |
 
 **Plus:** Kein Speicher-Umbau.  
 **Minus:** Ohne Ersatz-Activity sieht man **gar keine** Kommentar-Aktivität (nur weniger Müll). Kombination mit Option 2 oder 3 nötig.
@@ -48,6 +48,8 @@ Deep-Link: Datei/Ordner öffnen, Sidebar Comments, optional Thread fokussieren.
 ---
 
 ### 2. Speicher wechseln: WebDAV-Property auf der Ziel-Ressource (empfohlen für MVP+)
+
+> **Update (lokal geprüft, Juli 2026):** PROPPATCH auf `oc:opencloud-comments-document` antwortet mit HTTP 207, aber PROPFIND liefert 404 – OpenCloud persistiert diese Custom-Property nicht (anders als `oc:favorite`). Bis Server-Support existiert, **Sidecar-Speicher** (`.{name}.jsco` neben der Ressource) verwenden.
 
 **Idee:** Kommentar-JSON nicht als separate Datei, sondern als **DAV-Property** an `Plan.md` / Ordner hängen, z. B.:
 
@@ -66,7 +68,7 @@ Wert:     JSON (CommentDocument)
 
 **Zusatz:** Beim Speichern optional **kein** Activity auf Property-Only-Update – nur möglich, wenn Reva/OC einen Header oder Property-Change-Typ unterscheidet (Server-Thema). Sonst reicht lesbarer Dateiname aus Option 2b.
 
-**2b – Sidecar bleibt, aber am Ziel:** `.Plan.md.conflu.json` **im selben Ordner** wie die Datei (nicht unter `.conflu/comments/`). Activity: „Plan.md.conflu.json in Projects aktualisiert“ – immer noch besser als UUID in „comments“.
+**2b – Sidecar am Ziel (implementiert):** `.Plan.md.jsco` **im selben Ordner** wie die Datei (nicht unter `.conflu/comments/`). Activity: „.Plan.md.jsco in Projects aktualisiert“ – lesbarer als UUID in „comments“, Filter über `*.jsco` möglich.
 
 ---
 
@@ -126,7 +128,7 @@ flowchart TD
   act --> notify[Notifications + Activities teilen sich Events]
 ```
 
-1. **Kurzfristig:** Activities-Filter für `/.conflu/comments/` (Web-Hook oder Server-Filter) – Menü sofort entlasten.  
+1. **Kurzfristig:** Activities-Filter für `*.jsco` und legacy `/.conflu/comments/` (Web-Hook oder Server-Filter) – Menü sofort entlasten.  
 2. **Dann:** Speicher auf **WebDAV-Property an der Ziel-Datei** umstellen (Breaking Change ok). Dashboard-Suche über Tags/Property statt Sidecar-Datei-Search.  
 3. **Parallel planen:** Native API + Activity-Templates mit Preview und Erwähnungs-Hinweis – deckt sich mit `notifications-plan.md`.
 
@@ -136,7 +138,7 @@ flowchart TD
 
 | Heute | Anpassung |
 |-------|-----------|
-| `getCommentDocumentPath()` → `.conflu/comments/{fileId}.json` | Property-Adapter oder Sidecar-Pfad am Ziel |
+| `getCommentDocumentPath()` → `.{name}.jsco` neben der Ressource | Property-Adapter (wenn Server-Support da ist) |
 | `syncCommentedTag()` taggt Sidecar-Ressource | Tag auf **Ziel-Ressource** (Graph), nicht Sidecar |
 | Dashboard WebDAV-Search nach Sidecar-Dateien | Search/Index über getaggte Ziel-Ressourcen oder Server-Query |
 | Kein Activity-Hook | Filter-Extension oder wegfallende Sidecar-Events |
@@ -145,7 +147,7 @@ flowchart TD
 
 ## Offene Fragen an OpenCloud
 
-1. Kann Activitylog Pfade/Patterns **global ignorieren** (`.conflu/**`)?
+1. Kann Activitylog Pfade/Patterns **global ignorieren** (`*.jsco`, `.conflu/**`)?
 2. Lassen sich **PROPPATCH**-Updates ohne Activity oder mit gedämpftem Activity-Typ schreiben?
 3. Gibt es einen **Extension Point** in der Web-Activities-App zum Filtern/Umschreiben?
 4. Dürfen Services **Custom Activity Templates** registrieren (i18n `{user} commented on {resource}`)?

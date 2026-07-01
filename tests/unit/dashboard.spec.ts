@@ -1,6 +1,12 @@
 import { mock } from 'vitest-mock-extended'
 import { SpaceResource } from '@opencloud-eu/web-client'
 import {
+  createDefaultDashboardQuery,
+  createInitialDashboardQuery,
+  hasActiveDashboardFilters
+} from '../../src/composables/useCommentsDashboard'
+import { COMMENT_TAG } from '../../src/constants/tags'
+import {
   buildDashboardEntry,
   enrichDashboardTarget,
   filterDashboardEntries,
@@ -254,5 +260,22 @@ describe('comments dashboard api helpers', () => {
     expect(result.total).toBe(2)
     expect(result.entries).toHaveLength(1)
     expect(result.entries[0].thread.id).toBe('thread-open-answered')
+  })
+})
+
+describe('dashboard filter defaults', () => {
+  it('detects active filters against the reset defaults', () => {
+    expect(hasActiveDashboardFilters(createDefaultDashboardQuery())).toBe(false)
+    expect(hasActiveDashboardFilters(createInitialDashboardQuery())).toBe(true)
+  })
+
+  it('resets to permissive defaults while keeping the commented tag', () => {
+    expect(createDefaultDashboardQuery()).toEqual({
+      status: 'all',
+      answered: 'all',
+      type: 'all',
+      user: 'all',
+      tags: [COMMENT_TAG]
+    })
   })
 })

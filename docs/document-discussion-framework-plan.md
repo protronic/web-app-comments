@@ -51,7 +51,7 @@ const textEditor = useTextEditor({
 - Add `packages/web-app-comments/` with an `index.ts` that registers a sidebar panel for selected files/folders.
 - Implement `CommentsPanel.vue` with thread list, reply composer, edit/delete for own comments, resolve/unresolve, empty/loading/error states, and `$gettext` strings.
 - Add `types.ts` and a `CommentStorage` interface with methods such as `list(target)`, `createThread(target, input)`, `replyToThread(target, threadId, input)`, `updateComment(target, threadId, commentId, patch)`, `deleteComment(target, threadId, commentId, actor)`, and `setThreadResolved(target, threadId, resolved, actor)`.
-- Implement a WebDAV sidecar adapter for Conflu/docs prototypes. Prefer storing discussion files inside the documentation root, for example `.conflu/comments/{targetFileId}.json`, because generic file-level permission inheritance cannot be solved perfectly from a frontend-only extension.
+- Implement a WebDAV sidecar adapter for Conflu/docs prototypes. Prefer storing discussion files next to the target resource, for example `.{targetFileName}.jsco`, because generic file-level permission inheritance cannot be solved perfectly from a frontend-only extension.
 - Use existing OpenCloud SSE only as a best-effort refresh trigger when the sidecar file changes. Do not promise true realtime yet.
 
 ## Phase 2: Conflu Integration

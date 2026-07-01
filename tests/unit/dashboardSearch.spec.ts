@@ -33,4 +33,20 @@ describe('findSpaceForSearchResource', () => {
 
     expect(findSpaceForSearchResource(spaces, resource)?.id).toBe('owner$personal')
   })
+
+  it('matches resources via mountpoint spaces for shared storage', () => {
+    const mountpointSpace = mock<SpaceResource>({
+      id: 'virtual$virtual!owner:remote-space:mount-1',
+      driveType: 'mountpoint'
+    })
+    const resource = mock<Resource>({
+      storageId: 'owner$remote-space',
+      fileId: 'owner$remote-space!item-1',
+      path: '/Testfiel.txt'
+    })
+
+    expect(
+      findSpaceForSearchResource([personalSpace, mountpointSpace], resource)?.id
+    ).toBe(mountpointSpace.id)
+  })
 })

@@ -4,7 +4,7 @@ export const commentMessages = {
     'All comment threads across your spaces. Filter by status, replies, resource type, user involvement, and tags.',
   allUsers: 'All users',
   answered: 'Answered',
-  cancel: 'Cancel',
+  clearFilters: 'Clear filters',
   comment: 'Comment',
   commentDashboard: 'Comment dashboard',
   commentDeleted: 'Comment deleted',
@@ -35,7 +35,7 @@ export const commentMessages = {
   openSpace: 'Open space',
   openThread: 'Open thread',
   prototypeStorage:
-    'Prototype storage: comments are stored as a WebDAV property on the target resource.',
+    'Prototype storage: comments are stored as JSON sidecar files next to each resource (.{name}.jsco).',
   refresh: 'Refresh',
   reopen: 'Reopen',
   replies: 'Replies',

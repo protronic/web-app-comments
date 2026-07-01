@@ -1,6 +1,6 @@
 # Comments Dashboard API
 
-The dashboard aggregates comment threads from WebDAV sidecar files (`.conflu/comments/*.json`) across all spaces the current user can access.
+The dashboard aggregates comment threads from WebDAV sidecar files (`.{name}.jsco`, with legacy fallback to `.conflu/comments/*.json`) across all spaces the current user can access.
 
 ## TypeScript API
 

@@ -3,7 +3,7 @@ import { Graph } from '@opencloud-eu/web-client/graph'
 import { useSpacesStore } from '@opencloud-eu/web-pkg'
 import { unref } from 'vue'
 
-const DASHBOARD_DRIVE_TYPES = new Set(['personal', 'project'])
+const DASHBOARD_DRIVE_TYPES = new Set(['personal', 'project', 'mountpoint'])
 
 export async function loadDashboardSpaces(
   spacesStore: ReturnType<typeof useSpacesStore>,
