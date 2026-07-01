@@ -132,7 +132,7 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
         path: getCommentDocumentPath(target)
       })
       const document = normalizeCommentDocument(target, JSON.parse(response.body))
-      await syncCommentedTag(this.graph, target, document)
+      await syncCommentedTag(this.graph, this.webdav, target, document)
 
       return document
     } catch (error) {
@@ -152,7 +152,7 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
       path: getCommentDocumentPath(target),
       content: JSON.stringify(payload, null, 2)
     })
-    await syncCommentedTag(this.graph, target, payload)
+    await syncCommentedTag(this.graph, this.webdav, target, payload)
   }
 
   private async ensureCommentDirectory(target: CommentTarget): Promise<void> {

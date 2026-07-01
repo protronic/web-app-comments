@@ -42,7 +42,7 @@ describe('webdav sidecar comments', () => {
     const target = createCommentTarget(
       space,
       mock<Resource>({
-        fileId: 'space!file-1',
+        fileId: 'owner$space!file-1',
         name: 'README.md',
         path: '/README.md',
         isFolder: false
@@ -58,7 +58,7 @@ describe('webdav sidecar comments', () => {
     })
 
     expect(graph.assignTags).toHaveBeenCalledWith({
-      resourceId: 'space!file-1',
+      resourceId: 'owner$space!file-1',
       tags: [COMMENT_TAG]
     })
   })

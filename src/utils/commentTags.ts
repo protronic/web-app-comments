@@ -1,3 +1,4 @@
+import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { COMMENT_TAG } from '../constants/tags'
 import { CommentDocument, CommentTarget } from '../types'
 
@@ -16,8 +17,38 @@ export function buildTagSearchPattern(tags: string[]): string {
   return selected.map((tag) => `tag:${escapeTagTerm(tag)}`).join(' AND ')
 }
 
+export function isGraphResourceId(id: unknown): id is string {
+  return typeof id === 'string' && id.includes('$') && id.includes('!')
+}
+
 export function getGraphResourceId(target: CommentTarget): string | undefined {
-  return target.resource.fileId || target.resource.id || undefined
+  const candidates = [target.resource.fileId, target.resource.id, target.id]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+
+  return candidates.find(isGraphResourceId)
+}
+
+export async function resolveGraphResourceId(
+  webdav: WebDAV,
+  target: CommentTarget
+): Promise<string | undefined> {
+  const direct = getGraphResourceId(target)
+
+  if (direct) {
+    return direct
+  }
+
+  try {
+    const resource = await webdav.getFileInfo(target.space, {
+      path: target.path,
+      fileId: target.resource.fileId || target.resource.id
+    })
+    const resolved = resource.fileId || resource.id
+
+    return isGraphResourceId(resolved) ? resolved : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function hasCommentThreads(document: CommentDocument): boolean {
@@ -26,6 +57,7 @@ export function hasCommentThreads(document: CommentDocument): boolean {
 
 export async function syncCommentedTag(
   graph: CommentTagsGraphClient | undefined,
+  webdav: WebDAV,
   target: CommentTarget,
   document: CommentDocument
 ): Promise<void> {
@@ -33,7 +65,7 @@ export async function syncCommentedTag(
     return
   }
 
-  const resourceId = getGraphResourceId(target)
+  const resourceId = await resolveGraphResourceId(webdav, target)
 
   if (!resourceId) {
     return
