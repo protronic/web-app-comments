@@ -54,7 +54,7 @@ describe('dashboard navigation helpers', () => {
     }
 
     expect(getOpenTargetPath(space, target)).toBe('/Projects/Plan.md')
-    expect(getOpenTargetFileId(target)).toBe('owner$space!file-1')
+    expect(getOpenTargetFileId(space, target)).toBe('owner$space!file-1')
     expect(buildOpenTargetLocation(space, { space, target })).toEqual({
       name: 'files-spaces-generic',
       params: {
@@ -66,7 +66,7 @@ describe('dashboard navigation helpers', () => {
     })
   })
 
-  it('adds fileId query when opening a folder with a graph id', () => {
+  it('opens folders by path without a fileId query', () => {
     const target: DashboardTargetSummary = {
       id: 'owner$space!folder-1',
       fileId: 'owner$space!folder-1',
@@ -81,9 +81,26 @@ describe('dashboard navigation helpers', () => {
       name: 'files-spaces-generic',
       params: {
         driveAliasAndItem: 'personal/admin/Projects'
-      },
-      query: {
-        fileId: 'owner$space!folder-1'
+      }
+    })
+  })
+
+  it('opens folders with a space-root webdav path via the folder name', () => {
+    const target: DashboardTargetSummary = {
+      id: 'owner$space!folder-1',
+      fileId: 'owner$space!folder-1',
+      name: 'Testordner',
+      path: '/',
+      isFolder: true,
+      resourceType: 'folder',
+      tags: []
+    }
+
+    expect(getOpenTargetPath(space, target)).toBe('/Testordner')
+    expect(buildOpenTargetLocation(space, { space, target })).toEqual({
+      name: 'files-spaces-generic',
+      params: {
+        driveAliasAndItem: 'personal/admin/Testordner'
       }
     })
   })
@@ -115,6 +132,53 @@ describe('dashboard navigation helpers', () => {
       },
       query: {
         fileId: 'owner$space!folder-1'
+      }
+    })
+  })
+
+  it('opens folders via space path navigation even when a private link is present', () => {
+    const target: DashboardTargetSummary = {
+      id: 'owner$space!folder-1',
+      fileId: 'owner$space!folder-1',
+      privateLink: 'https://test.oc:9200/f/owner%24space%21folder-1',
+      name: 'Projects',
+      path: '/Projects',
+      isFolder: true,
+      resourceType: 'folder',
+      tags: []
+    }
+
+    expect(buildOpenTargetLocation(space, { space, target })).toEqual({
+      name: 'files-spaces-generic',
+      params: {
+        driveAliasAndItem: 'personal/admin/Projects'
+      }
+    })
+  })
+
+  it('opens spaces at the space root instead of using private links', () => {
+    const projectSpace = mock<SpaceResource>({
+      id: 'owner$space',
+      driveType: 'project',
+      driveAlias: 'project/demo',
+      privateLink: 'https://test.oc:9200/f/owner%24space',
+      getDriveAliasAndItem: ({ path }) => `project/demo${path ? `/${path.replace(/^\//, '')}` : ''}`
+    })
+    const target: DashboardTargetSummary = {
+      id: 'owner$space',
+      fileId: 'owner$space',
+      privateLink: 'https://test.oc:9200/f/owner%24space',
+      name: 'Demo',
+      path: '/',
+      isFolder: true,
+      resourceType: 'space',
+      tags: []
+    }
+
+    expect(buildOpenTargetLocation(projectSpace, { space: projectSpace, target })).toEqual({
+      name: 'files-spaces-projects',
+      params: {
+        driveAliasAndItem: 'project/demo'
       }
     })
   })

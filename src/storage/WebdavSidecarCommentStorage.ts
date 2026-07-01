@@ -24,7 +24,9 @@ import {
   syncCommentDocumentTarget
 } from '../utils/target'
 
-export interface SidecarGraphClient extends CommentTagsGraphClient, SidecarPermissionsGraphClient {}
+export interface SidecarGraphClient extends SidecarPermissionsGraphClient {
+  tags?: CommentTagsGraphClient
+}
 
 export class WebdavSidecarCommentStorage implements CommentStorage {
   public constructor(
@@ -134,7 +136,7 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
       try {
         const response = await this.webdav.getFileContents(target.space, { path })
         const document = normalizeCommentDocument(target, JSON.parse(response.body))
-        await syncCommentedTag(this.graph, this.webdav, target, document)
+        await syncCommentedTag(this.graph?.tags, this.webdav, target, document)
 
         return document
       } catch (error) {
@@ -167,7 +169,7 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
       }
     }
 
-    await syncCommentedTag(this.graph, this.webdav, target, payload)
+    await syncCommentedTag(this.graph?.tags, this.webdav, target, payload)
 
     if (
       sidecarResource &&

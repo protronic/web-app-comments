@@ -41,7 +41,15 @@ describe('webdav sidecar comments', () => {
 
   it('assigns the commented tag when creating a thread', async () => {
     const webdav = mock<WebDAV>()
-    const graph = mock<CommentTagsGraphClient & SidecarPermissionsGraphClient>()
+    const tags = mock<CommentTagsGraphClient>()
+    const graph = mock<SidecarPermissionsGraphClient>()
+    graph.permissions = {
+      listPermissions: vi.fn().mockResolvedValue({ shares: [], allowedActions: [], allowedRoles: [] }),
+      listRoleDefinitions: vi.fn().mockResolvedValue([]),
+      createInvite: vi.fn(),
+      createLink: vi.fn(),
+      updatePermission: vi.fn()
+    }
     const target = createCommentTarget(
       space,
       mock<Resource>({
@@ -51,7 +59,7 @@ describe('webdav sidecar comments', () => {
         isFolder: false
       })
     )
-    const storage = new WebdavSidecarCommentStorage(webdav, graph)
+    const storage = new WebdavSidecarCommentStorage(webdav, { tags, ...graph })
     webdav.getFileContents.mockRejectedValue({ status: 404 })
 
     await storage.createThread(target, {
@@ -60,7 +68,7 @@ describe('webdav sidecar comments', () => {
       author: { id: 'marie', displayName: 'Marie' }
     })
 
-    expect(graph.assignTags).toHaveBeenCalledWith({
+    expect(tags.assignTags).toHaveBeenCalledWith({
       resourceId: 'owner$space!file-1',
       tags: [COMMENT_TAG]
     })
@@ -68,7 +76,8 @@ describe('webdav sidecar comments', () => {
 
   it('syncs source file shares to the sidecar after saving', async () => {
     const webdav = mock<WebDAV>()
-    const graph = mock<CommentTagsGraphClient & SidecarPermissionsGraphClient>()
+    const tags = mock<CommentTagsGraphClient>()
+    const graph = mock<SidecarPermissionsGraphClient>()
     graph.permissions = {
       listPermissions: vi.fn().mockResolvedValue({ shares: [], allowedActions: [], allowedRoles: [] }),
       listRoleDefinitions: vi.fn().mockResolvedValue([]),
@@ -86,7 +95,7 @@ describe('webdav sidecar comments', () => {
         isFolder: false
       })
     )
-    const storage = new WebdavSidecarCommentStorage(webdav, graph)
+    const storage = new WebdavSidecarCommentStorage(webdav, { tags, ...graph })
     webdav.getFileContents.mockRejectedValue({ status: 404 })
     webdav.putFileContents.mockResolvedValue({
       fileId: 'owner$space!sidecar-file',

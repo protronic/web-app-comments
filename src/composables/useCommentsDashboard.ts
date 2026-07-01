@@ -21,7 +21,7 @@ export function createDefaultDashboardQuery(): CommentsDashboardQuery {
 export function createInitialDashboardQuery(): CommentsDashboardQuery {
   return {
     status: 'open',
-    answered: 'all',
+    answered: 'answered',
     type: 'all',
     user: 'me',
     tags: [COMMENT_TAG]

@@ -66,6 +66,31 @@ describe('resolve comment dashboard targets', () => {
       path: '/projects/old-name.md',
       isFolder: false,
       resourceType: 'file',
+      fileId: 'owner$space!file-1',
+      tags: []
+    })
+  })
+
+  it('derives folder paths from the sidecar name when webdav only reports the space root', async () => {
+    webdav.getFileInfo.mockRejectedValue(new Error('not found'))
+
+    const folderDocument: CommentDocument = {
+      version: 1,
+      target: {
+        id: 'folder-1',
+        name: 'Testordner',
+        path: '/Testordner',
+        isFolder: true
+      },
+      threads: []
+    }
+
+    await expect(resolveCommentDocumentTarget(webdav, space, folderDocument)).resolves.toEqual({
+      id: 'folder-1',
+      name: 'Testordner',
+      path: '/Testordner',
+      isFolder: true,
+      resourceType: 'folder',
       tags: []
     })
   })

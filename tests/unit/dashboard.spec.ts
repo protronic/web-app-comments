@@ -309,6 +309,13 @@ describe('dashboard filter defaults', () => {
             format: 'markdown',
             author: { id: 'admin', displayName: 'Admin' },
             createdAt: '2026-06-28T10:00:00.000Z'
+          },
+          {
+            id: 'comment-reply',
+            body: 'On it',
+            format: 'markdown',
+            author: { id: 'dennis', displayName: 'Dennis' },
+            createdAt: '2026-06-28T10:05:00.000Z'
           }
         ]
       },

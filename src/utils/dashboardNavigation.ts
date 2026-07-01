@@ -65,10 +65,12 @@ export function buildOpenTargetLocation(
   space: SpaceResource,
   entry: Pick<DashboardThreadEntry, 'space' | 'target'>
 ): RouteLocationNamedRaw {
-  const privateLinkLocation = buildPrivateLinkLocation(entry.target.privateLink)
+  if (entry.target.resourceType === 'file') {
+    const privateLinkLocation = buildPrivateLinkLocation(entry.target.privateLink)
 
-  if (privateLinkLocation) {
-    return privateLinkLocation
+    if (privateLinkLocation) {
+      return privateLinkLocation
+    }
   }
 
   const routeName =
@@ -81,7 +83,7 @@ export function buildOpenTargetLocation(
     }
   }
 
-  const fileId = getOpenTargetFileId(entry.target)
+  const fileId = getOpenTargetFileId(space, entry.target)
 
   if (fileId) {
     location.query = { fileId }
@@ -127,21 +129,57 @@ export function getOpenTargetPath(space: SpaceResource, target: DashboardTargetS
     return ''
   }
 
-  const path = relativizeMountpointPath(space, target.path)
+  let path = relativizeMountpointPath(space, target.path)
 
   if (path === '/') {
-    return ''
+    path = ''
+  }
+
+  if (!path && target.resourceType === 'folder') {
+    path = deriveFolderNavigationPath(space, target)
   }
 
   return path
 }
 
-export function getOpenTargetFileId(target: DashboardTargetSummary): string | undefined {
+export function getOpenTargetFileId(
+  space: SpaceResource,
+  target: DashboardTargetSummary
+): string | undefined {
   if (target.resourceType === 'space') {
     return undefined
   }
 
   const candidate = target.fileId || target.id
 
-  return isGraphResourceId(candidate) ? candidate : undefined
+  if (!isGraphResourceId(candidate)) {
+    return undefined
+  }
+
+  // Folders with a resolved path should navigate by path only. Combining path
+  // and fileId often lands on the space root instead of the folder.
+  if (target.resourceType === 'folder' && getOpenTargetPath(space, target)) {
+    return undefined
+  }
+
+  return candidate
+}
+
+function deriveFolderNavigationPath(
+  space: Pick<SpaceResource, 'driveType' | 'name'>,
+  target: Pick<DashboardTargetSummary, 'name' | 'path'>
+): string {
+  const candidates = [target.path, target.name ? `/${target.name}` : undefined].filter(
+    (value): value is string => Boolean(value && value !== '/')
+  )
+
+  for (const candidate of candidates) {
+    const relativized = relativizeMountpointPath(space, candidate)
+
+    if (relativized && relativized !== '/') {
+      return relativized
+    }
+  }
+
+  return ''
 }

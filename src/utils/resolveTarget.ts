@@ -179,7 +179,7 @@ function mapResourceToTargetSummary(
   const summary: DashboardTargetSummary = {
     id: getStableResourceId(resource) || fallback.id,
     name,
-    path: relativizeMountpointPath(space, path),
+    path: resolveTargetPath(space, { isFolder, name, path }, fallback.path),
     isFolder,
     resourceType: getResourceTypeFromResource(resource, isFolder),
     mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : undefined,
@@ -199,9 +199,14 @@ export function mapFallbackTargetSummary(
   const summary: DashboardTargetSummary = {
     id: fallback.id,
     name: fallback.name,
-    path: relativizeMountpointPath(space, fallback.path),
+    path: resolveTargetPath(
+      space,
+      { isFolder: fallback.isFolder, name: fallback.name, path: fallback.path },
+      fallback.path
+    ),
     isFolder: fallback.isFolder,
     resourceType: fallback.isFolder ? 'folder' : 'file',
+    fileId: isGraphResourceId(fallback.id) ? fallback.id : undefined,
     tags: []
   }
 
@@ -270,4 +275,26 @@ function getNameFromPath(path: string): string | undefined {
   const segments = path.split('/').filter(Boolean)
 
   return segments[segments.length - 1]
+}
+
+function resolveTargetPath(
+  space: SpaceResource,
+  target: Pick<DashboardTargetSummary, 'isFolder' | 'name' | 'path'>,
+  fallbackPath?: string
+): string {
+  let path = relativizeMountpointPath(space, target.path)
+
+  if (target.isFolder && (path === '/' || !path) && fallbackPath && fallbackPath !== '/') {
+    path = relativizeMountpointPath(space, fallbackPath)
+  }
+
+  if (target.isFolder && (path === '/' || !path) && target.name) {
+    const derived = relativizeMountpointPath(space, `/${target.name}`)
+
+    if (derived && derived !== '/') {
+      path = derived
+    }
+  }
+
+  return path
 }
