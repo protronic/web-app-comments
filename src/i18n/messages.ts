@@ -18,6 +18,10 @@ export const commentMessages = {
   files: 'Files',
   folder: 'Folder',
   folders: 'Folders',
+  individualShareCommentComposerHint:
+    'This file is individually shared. Comments are stored in a separate sidecar file — mentions and notifications may not work reliably. Prefer a folder share or project space.',
+  individualShareCommentSaveWarningDesc:
+    'Your comment is stored in a separate .jsco sidecar file. For shared discussions, prefer sharing a folder or using a project space.',
   individualShareCommentWarningDesc:
     'Comments on individually shared files use a separate .jsco sidecar file. Mentions and notifications may not reach recipients reliably. Prefer sharing a folder or using a project space instead.',
   individualShareCommentWarningTitle: 'Individual file share',
@@ -31,6 +35,10 @@ export const commentMessages = {
   mentionNoResults: 'No users found.',
   me: 'Me',
   mentionNotificationTitle: '%{author} mentioned you in %{resource}',
+  mentionNotificationBatchTitle: 'You were mentioned in %{count} comment threads',
+  commentNotificationBatchTitle: 'You have %{count} new comment notifications',
+  replyNotificationTitle: '%{author} replied in %{resource}',
+  openCommentDashboard: 'Open dashboard',
   noMatchingThreads: 'No comment threads match the current filters.',
   noCommentsYet: 'No comments yet. Start the discussion above.',
   noRepliesYet: 'No replies yet',

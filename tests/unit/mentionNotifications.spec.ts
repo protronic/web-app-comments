@@ -1,11 +1,14 @@
 import {
+  collectUnreadCommentNotifications,
   collectUnreadMentionNotifications,
-  isCommentSidecarPath,
+  dedupeMentionEvents,
   loadNotifiedMentionKeys,
   markMentionsNotified,
   mentionNotificationKey,
+  reserveFreshMentionKeys,
   sseAffectedUserMatches
 } from '../../src/utils/mentionNotifications'
+import { isCommentSidecarPath } from '../../src/utils/target'
 import { CommentDocument } from '../../src/types'
 
 describe('mention notifications', () => {
@@ -49,11 +52,49 @@ describe('mention notifications', () => {
   })
 
   it('collects unread mention notifications for the current user', () => {
-    const events = collectUnreadMentionNotifications(document, ['dennis'], new Set())
+    const events = collectUnreadCommentNotifications(document, ['dennis'], new Set())
 
     expect(events).toHaveLength(1)
+    expect(events[0]?.kind).toBe('mention')
     expect(events[0]?.actor.displayName).toBe('Admin')
     expect(events[0]?.targetName).toBe('Testfiel.txt')
+  })
+
+  it('collects reply notifications for thread participants', () => {
+    const replyDocument: CommentDocument = {
+      ...document,
+      threads: [
+        {
+          id: 'thread-reply',
+          targetId: 'file-1',
+          status: 'open',
+          createdAt: '2026-07-01T10:00:00.000Z',
+          updatedAt: '2026-07-01T11:00:00.000Z',
+          comments: [
+            {
+              id: 'comment-1',
+              body: 'Initial question',
+              format: 'markdown',
+              author: { id: 'dennis', displayName: 'Dennis' },
+              createdAt: '2026-07-01T10:00:00.000Z'
+            },
+            {
+              id: 'comment-2',
+              body: 'Here is the answer',
+              format: 'markdown',
+              author: { id: 'admin', displayName: 'Admin' },
+              createdAt: '2026-07-01T11:00:00.000Z'
+            }
+          ]
+        }
+      ]
+    }
+
+    const events = collectUnreadCommentNotifications(replyDocument, ['dennis'], new Set())
+
+    expect(events).toHaveLength(1)
+    expect(events[0]?.kind).toBe('reply')
+    expect(events[0]?.commentId).toBe('comment-2')
   })
 
   it('skips self-mentions and already notified keys', () => {
@@ -61,6 +102,32 @@ describe('mention notifications', () => {
 
     expect(collectUnreadMentionNotifications(document, ['admin'], new Set())).toHaveLength(0)
     expect(collectUnreadMentionNotifications(document, ['dennis'], new Set([key]))).toHaveLength(0)
+  })
+
+  it('reserves mention keys while a toast is being shown', () => {
+    const keys = [
+      mentionNotificationKey('thread-1', 'comment-1', 'dennis'),
+      mentionNotificationKey('thread-1', 'comment-1', 'dennis')
+    ]
+
+    expect(reserveFreshMentionKeys(keys)).toEqual([
+      mentionNotificationKey('thread-1', 'comment-1', 'dennis')
+    ])
+    expect(reserveFreshMentionKeys(keys)).toEqual([])
+  })
+
+  it('deduplicates mention events by thread, comment, and mention id', () => {
+    const event = {
+      threadId: 'thread-1',
+      commentId: 'comment-1',
+      mentionId: 'dennis',
+      actor: { id: 'admin', displayName: 'Admin' },
+      targetName: 'Test',
+      targetPath: '/Test.txt',
+      preview: 'Hi'
+    }
+
+    expect(dedupeMentionEvents([event, event])).toEqual([event])
   })
 
   it('persists notified mention keys in session storage', () => {

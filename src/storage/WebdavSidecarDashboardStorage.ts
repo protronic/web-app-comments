@@ -5,15 +5,16 @@ import {
   CommentDocument,
   CommentsDashboardApi,
   CommentsDashboardQuery,
-  CommentsDashboardResult
+  CommentsDashboardResult,
+  DashboardThreadEntry
 } from '../types'
 import { COMMENT_TAG } from '../constants/tags'
 import { buildTagSearchPattern } from '../utils/commentTags'
 import { buildDashboardEntries, queryDashboardEntries } from '../utils/dashboard'
-import { findSpaceForSearchResource } from '../utils/dashboardSearch'
+import { resolveSpaceForSearchResource } from '../utils/dashboardSearch'
 import { enrichTargetLinkFromGraph } from '../utils/graphTargetLinks'
 import { resolveCommentDocumentTarget } from '../utils/resolveTarget'
-import { createCommentTarget, getCommentSidecarReadPaths } from '../utils/target'
+import { createCommentTarget, getCommentSidecarReadPaths, getSpaceRootSidecarReadPaths, isDashboardSpaceRoot } from '../utils/target'
 
 export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
   public constructor(
@@ -25,7 +26,7 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
     spaces: SpaceResource[],
     query: CommentsDashboardQuery = {}
   ): Promise<CommentsDashboardResult> {
-    const entries = []
+    const entries: DashboardThreadEntry[] = []
     const searchTags = query.tags?.length ? query.tags : [COMMENT_TAG]
     const pattern = buildTagSearchPattern(searchTags)
 
@@ -35,11 +36,11 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       const result = await this.webdav.search(pattern, { searchLimit: 5000 })
       resources = result.resources
     } catch {
-      return queryDashboardEntries([], query)
+      resources = []
     }
 
     for (const resource of resources) {
-      const space = findSpaceForSearchResource(spaces, resource)
+      const space = await resolveSpaceForSearchResource(this.webdav, spaces, resource)
 
       if (!space) {
         continue
@@ -74,7 +75,49 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       }
     }
 
+    for (const space of spaces) {
+      if (!isDashboardSpaceRoot(space)) {
+        continue
+      }
+
+      if (query.spaceId && space.id !== query.spaceId) {
+        continue
+      }
+
+      try {
+        await this.loadSpaceRootThreads(space, entries)
+      } catch {
+        continue
+      }
+    }
+
     return queryDashboardEntries(entries, withoutTagRefilter(query))
+  }
+
+  private async loadSpaceRootThreads(
+    space: SpaceResource,
+    entries: DashboardThreadEntry[]
+  ): Promise<void> {
+    for (const sidecarPath of getSpaceRootSidecarReadPaths(space)) {
+      try {
+        const document = await this.loadDocument(space, sidecarPath)
+
+        if (document.threads.length === 0) {
+          continue
+        }
+
+        const resolvedTarget = await enrichTargetLinkFromGraph(
+          this.graph?.driveItems,
+          space,
+          await resolveCommentDocumentTarget(this.webdav, space, document, sidecarPath)
+        )
+
+        entries.push(...buildDashboardEntries(space, document, resolvedTarget))
+        return
+      } catch {
+        continue
+      }
+    }
   }
 
   private async loadDocumentForTarget(

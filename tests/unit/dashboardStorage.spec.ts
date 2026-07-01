@@ -238,4 +238,60 @@ describe('WebdavSidecarDashboardStorage', () => {
     expect(result.total).toBe(1)
     expect(result.entries[0]?.target.name).toBe('Plan.md')
   })
+
+  it('loads space-root sidecars even when tag search misses project spaces', async () => {
+    const webdav = mock<WebDAV>()
+    const storage = new WebdavSidecarDashboardStorage(webdav)
+
+    webdav.search.mockResolvedValue({
+      resources: [],
+      totalResults: 0
+    } as never)
+    webdav.getFileContents.mockImplementation(async (_space, { path }) => {
+      if (path === '/.Marketing.jsco') {
+        return {
+          body: JSON.stringify({
+            version: 1,
+            target: {
+              id: 'owner$space',
+              name: 'Marketing',
+              path: '/',
+              isFolder: true
+            },
+            threads: [
+              {
+                id: 'thread-space',
+                targetId: 'owner$space',
+                status: 'open',
+                createdAt: '2026-06-28T10:00:00.000Z',
+                updatedAt: '2026-06-28T10:00:00.000Z',
+                comments: [
+                  {
+                    id: 'comment-space',
+                    body: 'Space kickoff',
+                    format: 'markdown',
+                    author: { id: 'alice', displayName: 'Alice' },
+                    createdAt: '2026-06-28T10:00:00.000Z'
+                  }
+                ]
+              }
+            ]
+          })
+        } as never
+      }
+
+      throw new Error('not found')
+    })
+
+    const result = await storage.listThreads([space], {
+      tags: [COMMENT_TAG],
+      status: 'all',
+      answered: 'all',
+      type: 'space'
+    })
+
+    expect(result.total).toBe(1)
+    expect(result.entries[0]?.target.resourceType).toBe('space')
+    expect(result.entries[0]?.target.name).toBe('Marketing')
+  })
 })

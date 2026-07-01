@@ -73,7 +73,7 @@
           :thread="thread"
           :current-user-ids="currentUserIds"
           :disabled="isSaving"
-          @reply="replyToThread"
+          @reply="handleReplyToThread"
           @update="updateComment"
           @delete-comment="deleteComment"
           @set-resolved="setThreadResolved"
@@ -81,12 +81,20 @@
       </div>
 
       <div class="ext:mt-auto ext:flex ext:flex-col ext:gap-2 ext:border-t ext:border-role-outline-variant ext:pt-3">
+        <p
+          v-if="showIndividualShareHint"
+          class="ext:m-0 ext:rounded-md ext:border ext:border-role-warning ext:bg-role-warning-container ext:p-2 ext:text-xs ext:text-role-on-warning-container"
+          role="status"
+        >
+          {{ $gettext(msg.individualShareCommentComposerHint) }}
+        </p>
+
         <CommentForm
           :key="commentTarget.id"
           :submit-label="$gettext(msg.comment)"
           :placeholder="$gettext(msg.writeComment)"
           :disabled="isSaving || (isLoading && !hasLoadedOnce)"
-          @submit="createThread"
+          @submit="handleCreateThread"
         />
 
         <p class="ext:m-0 ext:text-xs ext:text-role-on-surface-variant">
@@ -142,7 +150,7 @@ const commentTarget = computed(() => {
   return createCommentTarget(space, resource)
 })
 
-const { showIndividualShareHint } = useIndividualShareCommentHint(
+const { showIndividualShareHint, warnOnCommentSave } = useIndividualShareCommentHint(
   () => unref(selectedSpace),
   () => unref(selectedResource)
 )
@@ -163,6 +171,16 @@ const {
   deleteComment,
   setThreadResolved
 } = useComments(() => unref(commentTarget))
+
+const handleCreateThread = async (body: string) => {
+  warnOnCommentSave()
+  await createThread(body)
+}
+
+const handleReplyToThread = async (threadId: string, body: string) => {
+  warnOnCommentSave()
+  await replyToThread(threadId, body)
+}
 
 watch([threads, isRefreshing], () => {
   void consumeScrollToLatest(threadScroller.value ?? undefined)

@@ -278,4 +278,49 @@ describe('dashboard filter defaults', () => {
       tags: [COMMENT_TAG]
     })
   })
+
+  it('includes mention-only threads in the initial dashboard query', () => {
+    const space = mock<SpaceResource>({
+      id: 'space-1',
+      name: 'Share',
+      driveAlias: 'mount/share',
+      driveType: 'mountpoint'
+    })
+    const target: DashboardTargetSummary = {
+      id: 'file-1',
+      name: 'Neue Datei.txt',
+      path: '/Neue Datei.txt',
+      isFolder: false,
+      resourceType: 'file',
+      tags: [COMMENT_TAG]
+    }
+    const mentionedThread = buildDashboardEntry(
+      space,
+      {
+        id: 'thread-mentioned',
+        targetId: 'file-1',
+        status: 'open',
+        createdAt: '2026-06-28T10:00:00.000Z',
+        updatedAt: '2026-06-28T10:00:00.000Z',
+        comments: [
+          {
+            id: 'comment-mentioned',
+            body: 'Please review @[Dennis Ritchie](user:dennis)',
+            format: 'markdown',
+            author: { id: 'admin', displayName: 'Admin' },
+            createdAt: '2026-06-28T10:00:00.000Z'
+          }
+        ]
+      },
+      target
+    )
+
+    const filtered = filterDashboardEntries([mentionedThread], {
+      ...createInitialDashboardQuery(),
+      userIds: ['dennis', 'cd88bf9a-dd7f-11ef-a609-7f78deb2345f']
+    })
+
+    expect(filtered).toHaveLength(1)
+    expect(filtered[0]?.thread.id).toBe('thread-mentioned')
+  })
 })

@@ -1,17 +1,15 @@
 import { CommentAuthor, CommentDocument, CommentThread } from '../types'
 import { getCommentPreviewLine } from './comments'
-import { commentMentionsUser, parseUserMentions } from './mentions'
-import {
-  COMMENTS_FOLDER_NAME,
-  COMMENT_SIDECAR_SUFFIX,
-  LEGACY_COMMENT_SIDECAR_SUFFIX
-} from './target'
+import { commentMentionsUser, parseUserMentions, threadInvolvesUser } from './mentions'
 import { authorMatchesUser, normalizeUserIdentity } from './userIdentity'
 
 const NOTIFIED_MENTIONS_STORAGE_KEY = 'comments-mentioned-notified'
 const MAX_NOTIFIED_MENTIONS = 500
 
+const pendingMentionKeys = new Set<string>()
+
 export interface MentionNotificationEvent {
+  kind: 'mention' | 'reply'
   threadId: string
   commentId: string
   mentionId: string
@@ -21,23 +19,15 @@ export interface MentionNotificationEvent {
   preview: string
 }
 
-export function isCommentSidecarPath(path: string): boolean {
-  const name = path.split('/').filter(Boolean).pop() || path
-
-  return (
-    name.endsWith(COMMENT_SIDECAR_SUFFIX) ||
-    name.endsWith(LEGACY_COMMENT_SIDECAR_SUFFIX) ||
-    path.includes(`/${COMMENTS_FOLDER_NAME}/`)
-  )
-}
-
 export function mentionNotificationKey(
   threadId: string,
   commentId: string,
-  mentionId: string
+  recipientId: string
 ): string {
-  return `${threadId}:${commentId}:${normalizeUserIdentity(mentionId)}`
+  return `${threadId}:${commentId}:${normalizeUserIdentity(recipientId)}`
 }
+
+export { isCommentSidecarPath } from './target'
 
 export function loadNotifiedMentionKeys(): Set<string> {
   if (typeof sessionStorage === 'undefined') {
@@ -70,9 +60,54 @@ export function markMentionsNotified(keys: string[]): void {
     NOTIFIED_MENTIONS_STORAGE_KEY,
     JSON.stringify([...next].slice(-MAX_NOTIFIED_MENTIONS))
   )
+
+  for (const key of keys) {
+    pendingMentionKeys.delete(key)
+  }
+}
+
+export function reserveFreshMentionKeys(keys: string[]): string[] {
+  const notifiedKeys = loadNotifiedMentionKeys()
+  const reserved: string[] = []
+
+  for (const key of keys) {
+    if (notifiedKeys.has(key) || pendingMentionKeys.has(key)) {
+      continue
+    }
+
+    pendingMentionKeys.add(key)
+    reserved.push(key)
+  }
+
+  return reserved
+}
+
+export function dedupeMentionEvents(events: MentionNotificationEvent[]): MentionNotificationEvent[] {
+  const seen = new Set<string>()
+
+  return events.filter((event) => {
+    const key = mentionNotificationKey(event.threadId, event.commentId, event.mentionId)
+
+    if (seen.has(key)) {
+      return false
+    }
+
+    seen.add(key)
+    return true
+  })
 }
 
 export function collectUnreadMentionNotifications(
+  document: CommentDocument,
+  userIds: string[],
+  notifiedKeys: Set<string>
+): MentionNotificationEvent[] {
+  return collectUnreadCommentNotifications(document, userIds, notifiedKeys).filter(
+    (event) => event.kind === 'mention'
+  )
+}
+
+export function collectUnreadCommentNotifications(
   document: CommentDocument,
   userIds: string[],
   notifiedKeys: Set<string>
@@ -81,9 +116,24 @@ export function collectUnreadMentionNotifications(
 
   for (const thread of document.threads) {
     events.push(...collectThreadMentionNotifications(thread, document, userIds, notifiedKeys))
+    events.push(...collectThreadReplyNotifications(thread, document, userIds, notifiedKeys))
   }
 
-  return events
+  return dedupeCommentNotifications(events)
+}
+
+function dedupeCommentNotifications(events: MentionNotificationEvent[]): MentionNotificationEvent[] {
+  const byComment = new Map<string, MentionNotificationEvent>()
+
+  for (const event of events) {
+    const existing = byComment.get(event.commentId)
+
+    if (!existing || (existing.kind === 'reply' && event.kind === 'mention')) {
+      byComment.set(event.commentId, event)
+    }
+  }
+
+  return [...byComment.values()]
 }
 
 function collectThreadMentionNotifications(
@@ -115,6 +165,7 @@ function collectThreadMentionNotifications(
       }
 
       events.push({
+        kind: 'mention',
         threadId: thread.id,
         commentId: comment.id,
         mentionId: mention.id,
@@ -124,6 +175,55 @@ function collectThreadMentionNotifications(
         preview: getCommentPreviewLine(comment.body)
       })
     }
+  }
+
+  return events
+}
+
+function collectThreadReplyNotifications(
+  thread: CommentThread,
+  document: CommentDocument,
+  userIds: string[],
+  notifiedKeys: Set<string>
+): MentionNotificationEvent[] {
+  const events: MentionNotificationEvent[] = []
+
+  for (const [index, comment] of thread.comments.entries()) {
+    if (comment.deletedAt || authorMatchesUser(comment.author, userIds)) {
+      continue
+    }
+
+    const priorComments = thread.comments.slice(0, index).filter((entry) => !entry.deletedAt)
+
+    if (priorComments.length === 0) {
+      continue
+    }
+
+    const priorThread: CommentThread = {
+      ...thread,
+      comments: priorComments
+    }
+
+    if (!threadInvolvesUser(priorThread, userIds)) {
+      continue
+    }
+
+    const key = mentionNotificationKey(thread.id, comment.id, 'reply')
+
+    if (notifiedKeys.has(key)) {
+      continue
+    }
+
+    events.push({
+      kind: 'reply',
+      threadId: thread.id,
+      commentId: comment.id,
+      mentionId: 'reply',
+      actor: comment.author,
+      targetName: document.target.name,
+      targetPath: document.target.path,
+      preview: getCommentPreviewLine(comment.body)
+    })
   }
 
   return events

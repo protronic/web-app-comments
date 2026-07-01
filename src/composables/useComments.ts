@@ -12,17 +12,24 @@ import { CommentAuthor, CommentStorage, CommentTarget, CommentThread } from '../
 import { WebdavSidecarCommentStorage } from '../storage/WebdavSidecarCommentStorage'
 import { sortThreads } from '../utils/comments'
 import {
-  COMMENT_SSE_EVENT_TYPES,
   countActiveComments,
+  isSharedCommentTarget,
   parseCommentSsePayload,
   resolveCommentSidecarFileIds,
+  resolveSsePayloadForCommentTarget,
   sseEventMatchesCommentTarget
 } from '../utils/commentSse'
+import { subscribeCommentSse } from '../utils/commentSseHub'
 import { ensureCommentNotificationListener } from './useCommentNotifications'
 
 type LoadCommentsOptions = {
   silent?: boolean
+  refreshWatchIds?: boolean
 }
+
+const SILENT_RELOAD_DEBOUNCE_MS = 500
+const SPACE_SIDEBAR_POLL_INTERVAL_MS = 15_000
+const SHARE_SIDEBAR_POLL_INTERVAL_MS = 5_000
 
 export function useComments(target: () => CommentTarget | null) {
   const { $gettext } = useCommentGettext()
@@ -59,6 +66,12 @@ export function useComments(target: () => CommentTarget | null) {
     watchedFileIds.value = await resolveCommentSidecarFileIds(webdav, currentTarget)
   }
 
+  let silentReloadTimer: ReturnType<typeof setTimeout> | undefined
+  let silentReloadInFlight = false
+  let unsubscribeCommentSse: (() => void) | undefined
+  let sidebarPollTimer: ReturnType<typeof setInterval> | undefined
+  let sseEvaluationGeneration = 0
+
   const loadComments = async (options: LoadCommentsOptions = {}) => {
     const currentTarget = target()
 
@@ -73,7 +86,12 @@ export function useComments(target: () => CommentTarget | null) {
     const previousCount = countActiveComments(threads.value)
 
     if (silent) {
+      if (isRefreshing.value || silentReloadInFlight) {
+        return
+      }
+
       isRefreshing.value = true
+      silentReloadInFlight = true
     } else {
       isLoading.value = true
     }
@@ -81,7 +99,10 @@ export function useComments(target: () => CommentTarget | null) {
     error.value = undefined
 
     try {
-      await refreshWatchedFileIds(currentTarget)
+      if (!silent || options.refreshWatchIds) {
+        await refreshWatchedFileIds(currentTarget)
+      }
+
       const nextThreads = sortThreads(await storage.list(currentTarget))
       const nextCount = countActiveComments(nextThreads)
 
@@ -94,9 +115,107 @@ export function useComments(target: () => CommentTarget | null) {
         showErrorMessage({ title: error.value, errors: [e] })
       }
     } finally {
+      if (silent) {
+        silentReloadInFlight = false
+      }
+
       isLoading.value = false
       isRefreshing.value = false
     }
+  }
+
+  const scheduleSilentReload = () => {
+    if (silentReloadTimer) {
+      clearTimeout(silentReloadTimer)
+    }
+
+    silentReloadTimer = setTimeout(() => {
+      silentReloadTimer = undefined
+
+      if (isSaving.value || !hasLoadedOnce.value) {
+        return
+      }
+
+      void loadComments({ silent: true, refreshWatchIds: true })
+    }, SILENT_RELOAD_DEBOUNCE_MS)
+  }
+
+  const evaluateCommentSseEvent = async (message: MessageEvent) => {
+    const currentTarget = target()
+
+    if (!currentTarget || !capabilityStore.supportSSE) {
+      return
+    }
+
+    const data = parseCommentSsePayload(message)
+
+    if (!data?.itemid || data.initiatorid === clientService.initiatorId) {
+      return
+    }
+
+    const generation = ++sseEvaluationGeneration
+
+    if (sseEventMatchesCommentTarget(data, watchedFileIds.value)) {
+      scheduleSilentReload()
+      return
+    }
+
+    const matchesTarget = await resolveSsePayloadForCommentTarget(
+      webdav,
+      currentTarget,
+      data,
+      watchedFileIds.value
+    )
+
+    if (generation !== sseEvaluationGeneration) {
+      return
+    }
+
+    if (!matchesTarget) {
+      return
+    }
+
+    await refreshWatchedFileIds(currentTarget)
+    scheduleSilentReload()
+  }
+
+  const onCommentResourceChanged = (_eventType: string, message: MessageEvent) => {
+    void evaluateCommentSseEvent(message)
+  }
+
+  const getSidebarPollIntervalMs = () => {
+    const currentTarget = target()
+
+    if (currentTarget && isSharedCommentTarget(currentTarget)) {
+      return SHARE_SIDEBAR_POLL_INTERVAL_MS
+    }
+
+    return SPACE_SIDEBAR_POLL_INTERVAL_MS
+  }
+
+  const startSidebarPolling = () => {
+    stopSidebarPolling()
+
+    sidebarPollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return
+      }
+
+      if (isSaving.value || !hasLoadedOnce.value || !target()) {
+        return
+      }
+
+      void loadComments({ silent: true, refreshWatchIds: true })
+    }, getSidebarPollIntervalMs())
+  }
+
+  const stopSidebarPolling = () => {
+    if (!sidebarPollTimer) {
+      return
+    }
+
+    clearInterval(sidebarPollTimer)
+    sidebarPollTimer = undefined
   }
 
   const createThread = async (body: string) => {
@@ -165,68 +284,42 @@ export function useComments(target: () => CommentTarget | null) {
     }
   }
 
-  const sseHandlers = new Map<string, (message: MessageEvent) => void>()
+  onMounted(() => {
+    startSidebarPolling()
 
-  const onCommentResourceChanged = (message: MessageEvent) => {
-    const currentTarget = target()
-
-    if (!currentTarget) {
-      return
-    }
-
-    const data = parseCommentSsePayload(message)
-
-    if (!data?.itemid || data.initiatorid === clientService.initiatorId) {
-      return
-    }
-
-    if (!sseEventMatchesCommentTarget(data, watchedFileIds.value)) {
-      return
-    }
-
-    void loadComments({ silent: true })
-  }
-
-  const registerSse = () => {
     if (!capabilityStore.supportSSE) {
       return
     }
 
-    for (const eventType of COMMENT_SSE_EVENT_TYPES) {
-      if (sseHandlers.has(eventType)) {
-        continue
-      }
-
-      const handler = (message: MessageEvent) => {
-        onCommentResourceChanged(message)
-      }
-
-      sseHandlers.set(eventType, handler)
-      clientService.sseAuthenticated.addEventListener(eventType, handler)
-    }
-  }
-
-  const unregisterSse = () => {
-    for (const [eventType, handler] of sseHandlers) {
-      clientService.sseAuthenticated.removeEventListener(eventType, handler)
-    }
-
-    sseHandlers.clear()
-  }
-
-  onMounted(() => {
-    registerSse()
+    unsubscribeCommentSse = subscribeCommentSse(
+      clientService.sseAuthenticated,
+      onCommentResourceChanged
+    )
   })
 
   onBeforeUnmount(() => {
-    unregisterSse()
+    stopSidebarPolling()
+
+    if (silentReloadTimer) {
+      clearTimeout(silentReloadTimer)
+      silentReloadTimer = undefined
+    }
+
+    unsubscribeCommentSse?.()
+    unsubscribeCommentSse = undefined
   })
 
   watch(
     target,
     () => {
+      if (silentReloadTimer) {
+        clearTimeout(silentReloadTimer)
+        silentReloadTimer = undefined
+      }
+
       hasLoadedOnce.value = false
       scrollToLatest.value = false
+      startSidebarPolling()
       void loadComments()
     },
     { immediate: true }

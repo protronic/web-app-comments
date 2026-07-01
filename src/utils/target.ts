@@ -44,14 +44,73 @@ export const COMMENT_SIDECAR_SUFFIX = '.jsco'
 /** @deprecated Read fallback for sidecars written before the .jsco rename. */
 export const LEGACY_COMMENT_SIDECAR_SUFFIX = '.conflu.json'
 
+export function isCommentSidecarPath(path: string): boolean {
+  const name = path.split('/').filter(Boolean).pop() || path
+
+  return (
+    name.endsWith(COMMENT_SIDECAR_SUFFIX) ||
+    name.endsWith(LEGACY_COMMENT_SIDECAR_SUFFIX) ||
+    path.includes(`/${COMMENTS_FOLDER_NAME}/`)
+  )
+}
+
+export function isCommentSidecarResourceName(name: string | undefined): boolean {
+  if (!name) {
+    return false
+  }
+
+  return (
+    name.endsWith(COMMENT_SIDECAR_SUFFIX) || name.endsWith(LEGACY_COMMENT_SIDECAR_SUFFIX)
+  )
+}
+
+export function normalizeResourceNameForSidecar(name: string): string {
+  let normalized = name.trim()
+
+  if (normalized.endsWith(COMMENT_SIDECAR_SUFFIX)) {
+    normalized = normalized.slice(0, -COMMENT_SIDECAR_SUFFIX.length)
+  } else if (normalized.endsWith(LEGACY_COMMENT_SIDECAR_SUFFIX)) {
+    normalized = normalized.slice(0, -LEGACY_COMMENT_SIDECAR_SUFFIX.length)
+  }
+
+  while (normalized.startsWith('.')) {
+    normalized = normalized.slice(1)
+  }
+
+  return normalized || 'resource'
+}
+
+export function resolveSourceResourceFromSidecar(
+  resource: Pick<Resource, 'name' | 'path' | 'isFolder'>
+): { name: string; path: string } {
+  const resourcePath = resource.path || '/'
+  const fileName = resource.name || getNameFromPath(resourcePath) || 'resource'
+
+  if (!isCommentSidecarPath(resourcePath) && !isCommentSidecarResourceName(fileName)) {
+    return { name: fileName, path: resourcePath }
+  }
+
+  const sidecarPath = isCommentSidecarPath(resourcePath)
+    ? resourcePath
+    : urlJoin(getCommentContainerPath(resource as Resource), fileName)
+  const containerPath = getSidecarContainerPath(sidecarPath) || '/'
+  const name = normalizeResourceNameForSidecar(fileName)
+
+  return {
+    name,
+    path: containerPath === '/' ? `/${name}` : urlJoin(containerPath, name)
+  }
+}
+
 export function createCommentTarget(space: SpaceResource, resource: Resource): CommentTarget {
-  const path = resource.path || '/'
+  const resolved = resolveSourceResourceFromSidecar(resource)
+  const path = resolved.path
 
   return {
     id: getStableResourceId(resource),
-    name: resource.name || path,
+    name: resolved.name,
     path,
-    containerPath: getCommentContainerPath(resource),
+    containerPath: getCommentContainerPath({ ...resource, path, name: resolved.name }),
     isFolder: !!resource.isFolder,
     resource,
     space
@@ -78,7 +137,9 @@ export function getCommentContainerPath(resource: Resource): string {
 }
 
 export function getCommentSidecarFileName(target: Pick<CommentTarget, 'name' | 'path'>): string {
-  const resourceName = target.name || getNameFromPath(target.path) || 'resource'
+  const resourceName = normalizeResourceNameForSidecar(
+    target.name || getNameFromPath(target.path) || 'resource'
+  )
 
   return `.${resourceName}${COMMENT_SIDECAR_SUFFIX}`
 }
@@ -105,7 +166,9 @@ export function getLegacySiblingCommentDocumentPath(target: CommentTarget): stri
 export function getLegacyCommentSidecarFileName(
   target: Pick<CommentTarget, 'name' | 'path'>
 ): string {
-  const resourceName = target.name || getNameFromPath(target.path) || 'resource'
+  const resourceName = normalizeResourceNameForSidecar(
+    target.name || getNameFromPath(target.path) || 'resource'
+  )
 
   return `.${resourceName}${LEGACY_COMMENT_SIDECAR_SUFFIX}`
 }
@@ -116,6 +179,24 @@ export function getCommentSidecarReadPaths(target: CommentTarget): string[] {
     getLegacySiblingCommentDocumentPath(target),
     getLegacyCommentDocumentPath(target)
   ]
+}
+
+export function getSpaceRootSidecarReadPaths(space: SpaceResource): string[] {
+  const paths: string[] = []
+  const spaceName = space.name?.trim()
+
+  if (spaceName) {
+    paths.push(urlJoin('/', `.${spaceName}${COMMENT_SIDECAR_SUFFIX}`))
+    paths.push(urlJoin('/', `.${spaceName}${LEGACY_COMMENT_SIDECAR_SUFFIX}`))
+  }
+
+  paths.push(urlJoin('/', COMMENTS_FOLDER_NAME, `${toSafeFileName(space.id)}.json`))
+
+  return [...new Set(paths)]
+}
+
+export function isDashboardSpaceRoot(space: SpaceResource): boolean {
+  return space.driveType === 'personal' || space.driveType === 'project'
 }
 
 export function toSafeFileName(value: string): string {

@@ -66,4 +66,16 @@ describe('loadDashboardSpaces', () => {
 
     expect(spacesStore.loadSpaces).not.toHaveBeenCalled()
   })
+
+  it('handles an uninitialized spaces store ref', async () => {
+    const spacesStore = {
+      spaces: ref(undefined as unknown as SpaceResource[]),
+      loadSpaces: vi.fn().mockResolvedValue(undefined)
+    }
+
+    const result = await loadDashboardSpaces(spacesStore as never, graphClient)
+
+    expect(spacesStore.loadSpaces).toHaveBeenCalledWith({ graphClient })
+    expect(result.map((space) => space.id).sort()).toEqual(['mount', 'personal', 'project'])
+  })
 })

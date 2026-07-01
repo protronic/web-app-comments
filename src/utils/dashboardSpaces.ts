@@ -5,11 +5,17 @@ import { unref } from 'vue'
 
 const DASHBOARD_DRIVE_TYPES = new Set(['personal', 'project', 'mountpoint'])
 
+function getStoreSpaces(spacesStore: ReturnType<typeof useSpacesStore>): SpaceResource[] {
+  const spaces = unref(spacesStore.spaces)
+
+  return Array.isArray(spaces) ? spaces : []
+}
+
 export async function loadDashboardSpaces(
   spacesStore: ReturnType<typeof useSpacesStore>,
   graphClient: Graph
 ): Promise<SpaceResource[]> {
-  if (!unref(spacesStore.spaces).length) {
+  if (!getStoreSpaces(spacesStore).length) {
     await spacesStore.loadSpaces({ graphClient })
   }
 
@@ -27,7 +33,7 @@ export async function loadDashboardSpaces(
     // Fall back to the spaces store below.
   }
 
-  for (const space of unref(spacesStore.spaces)) {
+  for (const space of getStoreSpaces(spacesStore)) {
     if (isDashboardSpace(space)) {
       merged.set(space.id, space)
     }

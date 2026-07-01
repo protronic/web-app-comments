@@ -1,12 +1,14 @@
-import { MESSAGE_TYPE } from '@opencloud-eu/web-client/sse'
+import { Resource, extractNodeId } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { CommentTarget } from '../types'
-import { getCommentSidecarReadPaths, getStableResourceId } from './target'
+import { isCommentSidecarPath } from './target'
+import {
+  getCommentSidecarFileName,
+  getCommentSidecarReadPaths,
+  getStableResourceId
+} from './target'
 
-export const COMMENT_SSE_EVENT_TYPES = [
-  MESSAGE_TYPE.FILE_TOUCHED,
-  MESSAGE_TYPE.POSTPROCESSING_FINISHED
-] as const
+export { COMMENT_SSE_EVENT_TYPES } from './commentSseHub'
 
 export interface CommentSsePayload {
   itemid?: string
@@ -23,16 +25,37 @@ export function parseCommentSsePayload(message: MessageEvent): CommentSsePayload
   }
 }
 
+export function fileIdsReferToSameNode(left?: string, right?: string): boolean {
+  if (!left || !right) {
+    return false
+  }
+
+  if (left === right) {
+    return true
+  }
+
+  const leftNodeId = extractNodeId(left)
+  const rightNodeId = extractNodeId(right)
+
+  return leftNodeId.length > 0 && leftNodeId === rightNodeId
+}
+
 export function collectCommentTargetFileIds(target: CommentTarget): Set<string> {
   const ids = new Set<string>()
+  const resource = target.resource
 
-  for (const candidate of [target.resource.fileId, target.resource.id, target.id]) {
+  for (const candidate of [
+    resource.fileId,
+    resource.id,
+    resource.remoteItemId,
+    target.id
+  ]) {
     if (typeof candidate === 'string' && candidate.length > 0) {
       ids.add(candidate)
     }
   }
 
-  ids.add(getStableResourceId(target.resource))
+  ids.add(getStableResourceId(resource))
 
   return ids
 }
@@ -54,6 +77,10 @@ export async function resolveCommentSidecarFileIds(
       if (resource.id) {
         ids.add(resource.id)
       }
+
+      if (resource.remoteItemId) {
+        ids.add(resource.remoteItemId)
+      }
     } catch {
       // Sidecar may not exist yet.
     }
@@ -71,8 +98,84 @@ export function sseEventMatchesCommentTarget(
   }
 
   for (const itemId of [payload.itemid, payload.parentitemid]) {
-    if (itemId && watchedFileIds.has(itemId)) {
+    if (!itemId) {
+      continue
+    }
+
+    if (watchedFileIds.has(itemId)) {
       return true
+    }
+
+    for (const watchedId of watchedFileIds) {
+      if (fileIdsReferToSameNode(itemId, watchedId)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+export function resourceRelatesToCommentTarget(
+  resource: Resource,
+  target: CommentTarget
+): boolean {
+  const targetPath = target.path || '/'
+  const resourcePath = resource.path || '/'
+
+  if (resourcePath === targetPath) {
+    return true
+  }
+
+  if (fileIdsReferToSameNode(resource.fileId, target.resource.fileId)) {
+    return true
+  }
+
+  if (fileIdsReferToSameNode(resource.remoteItemId, target.resource.fileId)) {
+    return true
+  }
+
+  if (fileIdsReferToSameNode(resource.fileId, target.resource.remoteItemId)) {
+    return true
+  }
+
+  if (isCommentSidecarPath(resourcePath)) {
+    const sidecarName = getCommentSidecarFileName(target)
+    const resourceName = resource.name || resourcePath.split('/').filter(Boolean).pop()
+
+    if (resourceName === sidecarName) {
+      return true
+    }
+
+    return getCommentSidecarReadPaths(target).includes(resourcePath)
+  }
+
+  return false
+}
+
+export async function resolveSsePayloadForCommentTarget(
+  webdav: WebDAV,
+  target: CommentTarget,
+  payload: CommentSsePayload,
+  watchedFileIds: Set<string>
+): Promise<boolean> {
+  if (sseEventMatchesCommentTarget(payload, watchedFileIds)) {
+    return true
+  }
+
+  for (const itemId of [payload.itemid, payload.parentitemid]) {
+    if (!itemId) {
+      continue
+    }
+
+    try {
+      const resource = await webdav.getFileInfo(target.space, { fileId: itemId })
+
+      if (resourceRelatesToCommentTarget(resource, target)) {
+        return true
+      }
+    } catch {
+      continue
     }
   }
 
@@ -86,4 +189,22 @@ export function countActiveComments(
     (total, thread) => total + thread.comments.filter((comment) => !comment.deletedAt).length,
     0
   )
+}
+
+export function isSharedCommentTarget(target: CommentTarget): boolean {
+  if (target.space.driveType === 'mountpoint') {
+    return true
+  }
+
+  if (target.resource.isReceivedShare?.()) {
+    return true
+  }
+
+  if (target.resource.isMounted?.()) {
+    return true
+  }
+
+  const shareTypes = target.resource.shareTypes ?? []
+
+  return shareTypes.length > 0
 }

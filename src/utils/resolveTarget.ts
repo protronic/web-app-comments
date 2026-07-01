@@ -1,8 +1,9 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { CommentDocument, DashboardTargetSummary } from '../types'
-import { getSidecarContainerPath, getStableResourceId } from './target'
+import { getSidecarContainerPath, getStableResourceId, isCommentSidecarResourceName, normalizeResourceNameForSidecar } from './target'
 import { isGraphResourceId } from './commentTags'
+import { relativizeMountpointPath } from './mountpointPaths'
 
 export interface CommentDocumentRef {
   document: CommentDocument
@@ -18,7 +19,7 @@ export async function resolveCommentDocumentTarget(
   const fallback = document.target
   const containerPath = sidecarPath ? getSidecarContainerPath(sidecarPath) : undefined
 
-  if (isSpaceLevelSidecarTarget(fallback, containerPath)) {
+  if (isSpaceLevelSidecarTarget(fallback, containerPath, space, sidecarPath)) {
     return mapSpaceRootTargetSummary(fallback, space)
   }
 
@@ -114,9 +115,28 @@ export function isSpaceRootCommentTarget(
 
 function isSpaceLevelSidecarTarget(
   fallback: CommentDocument['target'],
-  containerPath: string | undefined
+  containerPath: string | undefined,
+  space: SpaceResource,
+  sidecarPath?: string
 ): boolean {
-  return !!containerPath && containerPath === '/' && fallback.isFolder && fallback.path === '/'
+  if (containerPath !== '/') {
+    return false
+  }
+
+  if (isSpaceRootCommentTarget(space, fallback)) {
+    return true
+  }
+
+  if (!sidecarPath || !space.name?.trim()) {
+    return false
+  }
+
+  const fileName = sidecarPath.split('/').filter(Boolean).pop() || ''
+
+  return (
+    isCommentSidecarResourceName(fileName) &&
+    normalizeResourceNameForSidecar(fileName) === space.name.trim()
+  )
 }
 
 function mapSpaceRootTargetSummary(
@@ -159,7 +179,7 @@ function mapResourceToTargetSummary(
   const summary: DashboardTargetSummary = {
     id: getStableResourceId(resource) || fallback.id,
     name,
-    path,
+    path: relativizeMountpointPath(space, path),
     isFolder,
     resourceType: getResourceTypeFromResource(resource, isFolder),
     mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : undefined,
@@ -179,7 +199,7 @@ export function mapFallbackTargetSummary(
   const summary: DashboardTargetSummary = {
     id: fallback.id,
     name: fallback.name,
-    path: fallback.path,
+    path: relativizeMountpointPath(space, fallback.path),
     isFolder: fallback.isFolder,
     resourceType: fallback.isFolder ? 'folder' : 'file',
     tags: []

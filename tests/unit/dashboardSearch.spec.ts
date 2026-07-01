@@ -1,6 +1,10 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { mock } from 'vitest-mock-extended'
-import { findSpaceForSearchResource } from '../../src/utils/dashboardSearch'
+import {
+  findMountpointForStorageId,
+  findSpaceForSearchResource,
+  rankMountpointCandidates
+} from '../../src/utils/dashboardSearch'
 
 describe('findSpaceForSearchResource', () => {
   const personalSpace = mock<SpaceResource>({
@@ -37,7 +41,8 @@ describe('findSpaceForSearchResource', () => {
   it('matches resources via mountpoint spaces for shared storage', () => {
     const mountpointSpace = mock<SpaceResource>({
       id: 'virtual$virtual!owner:remote-space:mount-1',
-      driveType: 'mountpoint'
+      driveType: 'mountpoint',
+      name: 'Share'
     })
     const resource = mock<Resource>({
       storageId: 'owner$remote-space',
@@ -48,5 +53,40 @@ describe('findSpaceForSearchResource', () => {
     expect(
       findSpaceForSearchResource([personalSpace, mountpointSpace], resource)?.id
     ).toBe(mountpointSpace.id)
+  })
+
+  it('prefers folder mountpoints over file and sidecar mounts for the same storage', () => {
+    const shareMount = mock<SpaceResource>({
+      id: 'virtual$virtual!owner:remote-space:share-mount',
+      driveType: 'mountpoint',
+      name: 'Share'
+    })
+    const fileMount = mock<SpaceResource>({
+      id: 'virtual$virtual!owner:remote-space:file-mount',
+      driveType: 'mountpoint',
+      name: 'neu.txt'
+    })
+    const sidecarMount = mock<SpaceResource>({
+      id: 'virtual$virtual!owner:remote-space:sidecar-mount',
+      driveType: 'mountpoint',
+      name: '.neu.txt.jsco'
+    })
+    const resource = mock<Resource>({
+      storageId: 'owner$remote-space',
+      fileId: 'owner$remote-space!item-1',
+      name: 'Neue Datei.txt',
+      path: '/Neue Datei.txt'
+    })
+
+    expect(
+      findMountpointForStorageId(
+        [fileMount, sidecarMount, shareMount],
+        'owner$remote-space',
+        resource
+      )?.name
+    ).toBe('Share')
+    expect(rankMountpointCandidates([fileMount, sidecarMount, shareMount], resource)[0].name).toBe(
+      'Share'
+    )
   })
 })

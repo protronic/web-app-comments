@@ -1,4 +1,17 @@
-import { Resource, ShareTypes, SpaceResource } from '@opencloud-eu/web-client'
+import {
+  CollaboratorShare,
+  LinkShare,
+  Resource,
+  ShareTypes,
+  SpaceResource,
+  isCollaboratorShare,
+  isLinkShare,
+  isShareRoot
+} from '@opencloud-eu/web-client'
+import {
+  SidecarPermissionsGraphClient,
+  getPermissionsDriveId
+} from './sidecarPermissions'
 
 export function isIndividuallySharedCommentTarget(
   space: SpaceResource,
@@ -9,7 +22,7 @@ export function isIndividuallySharedCommentTarget(
   }
 
   if (space.driveType === 'mountpoint') {
-    if (resource.isShareRoot?.()) {
+    if (isShareRoot(resource)) {
       return true
     }
 
@@ -29,4 +42,60 @@ export function isIndividuallySharedCommentTarget(
   }
 
   return false
+}
+
+export function shouldResolveIndividualShareViaGraph(
+  space: SpaceResource,
+  resource: Resource
+): boolean {
+  if (isIndividuallySharedCommentTarget(space, resource)) {
+    return false
+  }
+
+  if (resource.isFolder || resource.name?.endsWith('.jsco')) {
+    return false
+  }
+
+  if (space.driveType !== 'personal' && space.driveType !== 'project') {
+    return false
+  }
+
+  if (resource.isMounted?.() || !resource.fileId) {
+    return false
+  }
+
+  return true
+}
+
+export function hasDirectGraphFileShares(
+  shares: Array<CollaboratorShare | LinkShare>
+): boolean {
+  return shares.some(
+    (share) => !share.indirect && (isCollaboratorShare(share) || isLinkShare(share))
+  )
+}
+
+export async function resolveIndividualShareViaGraph(
+  graph: SidecarPermissionsGraphClient,
+  space: SpaceResource,
+  resource: Resource
+): Promise<boolean> {
+  const fileId = resource.fileId
+
+  if (!fileId) {
+    return false
+  }
+
+  const driveId = getPermissionsDriveId(space, fileId)
+
+  try {
+    const graphRoles = Object.fromEntries(
+      (await graph.permissions.listRoleDefinitions()).map((role) => [role.id, role])
+    )
+    const { shares } = await graph.permissions.listPermissions(driveId, fileId, graphRoles)
+
+    return hasDirectGraphFileShares(shares)
+  } catch {
+    return false
+  }
 }

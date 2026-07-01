@@ -1,6 +1,7 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import type { Graph } from '@opencloud-eu/web-client/graph'
+import { useSpacesStore } from '@opencloud-eu/web-pkg'
 import { findSpaceForSearchResource, findMountpointForStorageId } from './dashboardSearch'
 import { loadDashboardSpaces } from './dashboardSpaces'
 
@@ -27,14 +28,10 @@ export async function resolveResourceFromSseItem(
 }
 
 export async function loadNotificationSpaces(
-  spacesStore: { spaces: { value: SpaceResource[] }; loadSpaces: (args: { graphClient: Graph }) => Promise<void> },
+  spacesStore: ReturnType<typeof useSpacesStore>,
   graph: Graph
 ): Promise<SpaceResource[]> {
-  if (!spacesStore.spaces.value.length) {
-    await spacesStore.loadSpaces({ graphClient: graph })
-  }
-
-  return loadDashboardSpaces(spacesStore as never, graph)
+  return loadDashboardSpaces(spacesStore, graph)
 }
 
 function buildSpaceCandidates(spaces: SpaceResource[], spaceId?: string): SpaceResource[] {

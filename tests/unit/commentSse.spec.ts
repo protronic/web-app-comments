@@ -1,9 +1,11 @@
-import { Resource, SpaceResource } from '@opencloud-eu/web-client'
+import { Resource, ShareTypes, SpaceResource } from '@opencloud-eu/web-client'
 import { mock } from 'vitest-mock-extended'
 import { createCommentTarget } from '../../src/utils/target'
 import {
   collectCommentTargetFileIds,
   countActiveComments,
+  fileIdsReferToSameNode,
+  isSharedCommentTarget,
   sseEventMatchesCommentTarget
 } from '../../src/utils/commentSse'
 
@@ -37,6 +39,68 @@ describe('comment SSE helpers', () => {
     expect(
       sseEventMatchesCommentTarget({ itemid: 'owner$space!other-file' }, watched)
     ).toBe(false)
+  })
+
+  it('matches ids that share the same node id', () => {
+    expect(
+      fileIdsReferToSameNode(
+        'storage-a!node-1',
+        'storage-b!node-1'
+      )
+    ).toBe(true)
+
+    expect(
+      sseEventMatchesCommentTarget(
+        { itemid: 'owner$space!sidecar-1' },
+        new Set(['other$space!sidecar-1'])
+      )
+    ).toBe(true)
+  })
+
+  it('detects shared comment targets', () => {
+    const mountpoint = mock<SpaceResource>({ driveType: 'mountpoint' })
+    const project = mock<SpaceResource>({ driveType: 'project' })
+
+    expect(
+      isSharedCommentTarget(
+        createCommentTarget(
+          mountpoint,
+          mock<Resource>({ name: 'Plan.md', path: '/Plan.md', isFolder: false })
+        )
+      )
+    ).toBe(true)
+
+    expect(
+      isSharedCommentTarget(
+        createCommentTarget(
+          project,
+          mock<Resource>({
+            name: 'Plan.md',
+            path: '/Plan.md',
+            isFolder: false,
+            isReceivedShare: () => false,
+            isMounted: () => false,
+            shareTypes: []
+          })
+        )
+      )
+    ).toBe(false)
+
+    expect(
+      isSharedCommentTarget(
+        createCommentTarget(
+          project,
+          mock<Resource>({
+            name: 'Plan.md',
+            path: '/Plan.md',
+            isFolder: false,
+            shareTypes: [ShareTypes.user.value],
+            isReceivedShare: () => false,
+            isMounted: () => false
+          })
+        )
+      )
+    ).toBe(true)
   })
 
   it('counts only active comments', () => {

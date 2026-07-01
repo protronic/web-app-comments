@@ -20,7 +20,10 @@ describe.runIf(LIVE)('dashboard search resource mapping', () => {
     }
     const allSpaces = drives.map((drive) => buildSpace({ ...drive, serverUrl: baseUrl } as never))
     const dashboardSpaces = allSpaces.filter(
-      (space) => space.driveType === 'personal' || space.driveType === 'project'
+      (space) =>
+        space.driveType === 'personal' ||
+        space.driveType === 'project' ||
+        space.driveType === 'mountpoint'
     )
 
     const result = await dav.search('tag:Kommentiert', { searchLimit: 50 })
@@ -33,6 +36,27 @@ describe.runIf(LIVE)('dashboard search resource mapping', () => {
         storageId: resource.storageId,
         mapped: findSpaceForSearchResource(dashboardSpaces, resource)?.name ?? null
       }))
-    ).toMatchInlineSnapshot()
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "mapped": "Share",
+          "name": "Neue Datei.txt",
+          "path": "/Neue Datei.txt",
+          "storageId": "3aa12485-865e-4ad4-8adc-39eab0fb6aee$4c96551e-ff46-46e9-9571-10af0ffaf62c",
+        },
+        {
+          "mapped": "Share",
+          "name": "Neue Datei (1).txt",
+          "path": "/Neue Datei (1).txt",
+          "storageId": "3aa12485-865e-4ad4-8adc-39eab0fb6aee$4c96551e-ff46-46e9-9571-10af0ffaf62c",
+        },
+        {
+          "mapped": "Share",
+          "name": "Share",
+          "path": "/",
+          "storageId": "3aa12485-865e-4ad4-8adc-39eab0fb6aee$4c96551e-ff46-46e9-9571-10af0ffaf62c",
+        },
+      ]
+    `)
   })
 })

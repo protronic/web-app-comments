@@ -2,13 +2,13 @@ import { unref, watch } from 'vue'
 import {
   useCapabilityStore,
   useClientService,
+  useFileActions,
   useMessages,
   useRouter,
   useSpacesStore,
   useUserStore
 } from '@opencloud-eu/web-pkg'
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
-import { MESSAGE_TYPE } from '@opencloud-eu/web-client/sse'
 import { CommentDocument } from '../types'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { COMMENT_TAG } from '../constants/tags'
@@ -18,17 +18,21 @@ import {
   pickSpaceForResource,
   resolveResourceFromSseItem
 } from '../utils/commentNotificationSpaces'
-import { isCommentSidecarPath } from '../utils/mentionNotifications'
+import { isCommentSidecarPath } from '../utils/target'
 import {
   MentionNotificationPresenter,
-  presentMentionNotifications
+  presentMentionNotifications,
+  presentPolledMentionEntries
 } from '../utils/mentionNotificationPresenter'
 import {
   createCommentTarget,
   getCommentSidecarReadPaths
 } from '../utils/target'
+import { resolveMentionNavigation, toMentionNavigationEntry } from '../utils/mentionNavigation'
+import { openDashboardTarget } from '../utils/dashboardNavigation'
 import { collectUserIdentityKeys } from '../utils/userIdentity'
 import { debugLog } from '../utils/debugLog'
+import { subscribeCommentSse } from '../utils/commentSseHub'
 
 interface SseFileEvent {
   itemid?: string
@@ -38,10 +42,6 @@ interface SseFileEvent {
 }
 
 const MENTION_POLL_INTERVAL_MS = 20_000
-const MENTION_SSE_EVENT_TYPES = [
-  MESSAGE_TYPE.FILE_TOUCHED,
-  MESSAGE_TYPE.POSTPROCESSING_FINISHED
-] as const
 
 let listenerActive = false
 let pollTimer: ReturnType<typeof setInterval> | undefined
@@ -79,6 +79,7 @@ export function ensureCommentNotificationListener(): void {
   const spacesStore = useSpacesStore()
   const router = useRouter()
   const { showMessage } = useMessages()
+  const { getDefaultAction, triggerDefaultAction } = useFileActions()
   const { $gettext } = useCommentGettext()
   const dashboard = new WebdavSidecarDashboardStorage(
     clientService.webdav,
@@ -88,26 +89,57 @@ export function ensureCommentNotificationListener(): void {
   const presenter: MentionNotificationPresenter = {
     showMessage,
     translate: (message, values) => $gettext(message, values),
-    router
+    router,
+    openTarget: (space, entry) =>
+      openDashboardTarget(space, entry, router, { getDefaultAction, triggerDefaultAction })
   }
 
   const currentUserIds = () =>
     collectUserIdentityKeys((userStore.user || undefined) as Record<string, unknown>)
 
-  const notifyFromDocument = (space: SpaceResource, document: CommentDocument, source: string) => {
-    presentMentionNotifications(presenter, space, document, currentUserIds(), source)
+  const notifyFromDocument = (
+    space: SpaceResource,
+    document: CommentDocument,
+    source: string,
+    navigation?: ReturnType<typeof toMentionNavigationEntry>
+  ) => {
+    presentMentionNotifications(
+      presenter,
+      space,
+      document,
+      currentUserIds(),
+      source,
+      navigation
+    )
   }
 
   const notifyFromSidecar = async (
     space: SpaceResource,
     sidecarPath: string,
-    source: string
+    source: string,
+    sourceResource?: Resource
   ): Promise<boolean> => {
     try {
       const response = await clientService.webdav.getFileContents(space, { path: sidecarPath })
       const document = JSON.parse(response.body) as CommentDocument
+      const spaces = await loadNotificationSpaces(spacesStore, clientService.graphAuthenticated)
+      const navigation = await resolveMentionNavigation(
+        clientService.webdav,
+        clientService.graphAuthenticated.driveItems,
+        spaces,
+        space,
+        document,
+        { sourceResource, sidecarPath }
+      )
 
-      return presentMentionNotifications(presenter, space, document, currentUserIds(), source)
+      return presentMentionNotifications(
+        presenter,
+        navigation.space,
+        document,
+        currentUserIds(),
+        source,
+        toMentionNavigationEntry(navigation)
+      )
     } catch {
       return false
     }
@@ -123,14 +155,14 @@ export function ensureCommentNotificationListener(): void {
     const path = resource.path || '/'
 
     if (isCommentSidecarPath(path)) {
-      await notifyFromSidecar(activeSpace, path, 'sse')
+      await notifyFromSidecar(activeSpace, path, 'sse', resource)
       return
     }
 
     const target = createCommentTarget(activeSpace, resource)
 
     for (const sidecarPath of getCommentSidecarReadPaths(target)) {
-      const notified = await notifyFromSidecar(activeSpace, sidecarPath, 'sse')
+      const notified = await notifyFromSidecar(activeSpace, sidecarPath, 'sse', resource)
 
       if (notified) {
         break
@@ -173,28 +205,17 @@ export function ensureCommentNotificationListener(): void {
       )
       // #endregion
 
-      for (const entry of result.entries) {
+      const pollEntries = result.entries.flatMap((entry) => {
         const space = spaces.find((candidate) => candidate.id === entry.space.id)
 
         if (!space) {
-          continue
+          return []
         }
 
-        notifyFromDocument(
-          space,
-          {
-            version: 1,
-            target: {
-              id: entry.target.id,
-              name: entry.target.name,
-              path: entry.target.path,
-              isFolder: entry.target.isFolder
-            },
-            threads: [entry.thread]
-          },
-          'poll'
-        )
-      }
+        return [{ space, entry }]
+      })
+
+      presentPolledMentionEntries(presenter, pollEntries, userIds, 'poll')
     } catch (error) {
       // #region agent log
       debugLog(
@@ -278,26 +299,52 @@ export function ensureCommentNotificationListener(): void {
     }
   }
 
-  const sseHandlers = new Map<string, (message: MessageEvent) => void>()
+  let unsubscribeCommentSse: (() => void) | undefined
+  let mentionSseInFlight = false
+  let mentionSseTimer: ReturnType<typeof setTimeout> | undefined
+  const MENTION_SSE_DEBOUNCE_MS = 500
 
-  const bindSseHandler = (eventType: string) => {
-    const handler = (message: MessageEvent) => {
-      void onResourceChanged(eventType, message)
-    }
-
-    sseHandlers.set(eventType, handler)
-    clientService.sseAuthenticated.addEventListener(eventType, handler)
-  }
-
-  const unbindSseHandler = (eventType: string) => {
-    const handler = sseHandlers.get(eventType)
-
-    if (!handler) {
+  const runMentionSse = async (eventType: string, message: MessageEvent) => {
+    if (mentionSseInFlight) {
       return
     }
 
-    clientService.sseAuthenticated.removeEventListener(eventType, handler)
-    sseHandlers.delete(eventType)
+    mentionSseInFlight = true
+
+    try {
+      await onResourceChanged(eventType, message)
+    } finally {
+      mentionSseInFlight = false
+    }
+  }
+
+  const scheduleMentionSse = (eventType: string, message: MessageEvent) => {
+    if (mentionSseTimer) {
+      clearTimeout(mentionSseTimer)
+    }
+
+    mentionSseTimer = setTimeout(() => {
+      mentionSseTimer = undefined
+      void runMentionSse(eventType, message)
+    }, MENTION_SSE_DEBOUNCE_MS)
+  }
+
+  const registerSse = () => {
+    if (!capabilityStore.supportSSE || !userStore.user || unsubscribeCommentSse) {
+      return
+    }
+
+    unsubscribeCommentSse = subscribeCommentSse(clientService.sseAuthenticated, scheduleMentionSse)
+  }
+
+  const unregisterSse = () => {
+    if (mentionSseTimer) {
+      clearTimeout(mentionSseTimer)
+      mentionSseTimer = undefined
+    }
+
+    unsubscribeCommentSse?.()
+    unsubscribeCommentSse = undefined
   }
 
   const startPolling = () => {
@@ -318,22 +365,6 @@ export function ensureCommentNotificationListener(): void {
 
     clearInterval(pollTimer)
     pollTimer = undefined
-  }
-
-  const registerSse = () => {
-    if (!capabilityStore.supportSSE || !userStore.user) {
-      return
-    }
-
-    for (const eventType of MENTION_SSE_EVENT_TYPES) {
-      bindSseHandler(eventType)
-    }
-  }
-
-  const unregisterSse = () => {
-    for (const eventType of MENTION_SSE_EVENT_TYPES) {
-      unbindSseHandler(eventType)
-    }
   }
 
   watch(

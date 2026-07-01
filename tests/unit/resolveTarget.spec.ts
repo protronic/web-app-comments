@@ -133,6 +133,46 @@ describe('resolve comment dashboard targets', () => {
     })
   })
 
+  it('resolves sibling space-root sidecars by space name', async () => {
+    const projectSpace = mock<SpaceResource>({
+      id: 'space-root$id',
+      name: 'New space',
+      driveAlias: 'project/new-space',
+      driveType: 'project'
+    })
+
+    const spaceDocument: CommentDocument = {
+      version: 1,
+      target: {
+        id: 'space-root$id',
+        name: 'New space',
+        path: '/New space',
+        isFolder: true
+      },
+      threads: []
+    }
+
+    await expect(
+      resolveCommentDocumentTarget(
+        webdav,
+        projectSpace,
+        spaceDocument,
+        '/.New space.jsco'
+      )
+    ).resolves.toEqual({
+      id: 'space-root$id',
+      name: 'New space',
+      path: '/',
+      isFolder: true,
+      resourceType: 'space',
+      fileId: 'space-root$id',
+      privateLink: undefined,
+      tags: []
+    })
+
+    expect(webdav.getFileInfo).not.toHaveBeenCalled()
+  })
+
   it('resolves space-root comments from the space sidecar container', async () => {
     const projectSpace = mock<SpaceResource>({
       id: 'space-root$id',

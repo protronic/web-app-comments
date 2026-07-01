@@ -21,7 +21,7 @@ export function createDefaultDashboardQuery(): CommentsDashboardQuery {
 export function createInitialDashboardQuery(): CommentsDashboardQuery {
   return {
     status: 'open',
-    answered: 'answered',
+    answered: 'all',
     type: 'all',
     user: 'me',
     tags: [COMMENT_TAG]
@@ -139,6 +139,12 @@ export function useCommentsDashboard() {
     },
     { deep: true }
   )
+
+  watch(currentUserIds, (userIds) => {
+    if (userStore.user && unref(query).user === 'me' && userIds.length > 0) {
+      void loadDashboard()
+    }
+  })
 
   return {
     entries,

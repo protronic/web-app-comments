@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { buildSpace, webdav } from '@opencloud-eu/web-client'
+import { createInitialDashboardQuery } from '../../src/composables/useCommentsDashboard'
 import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
 import { collectUserIdentityKeys } from '../../src/utils/userIdentity'
 import { threadInvolvesUser } from '../../src/utils/mentions'
@@ -57,5 +58,15 @@ describe.runIf(LIVE)('dashboard mention filter for Dennis', () => {
     expect(pollQuery.entries.some((entry) => threadInvolvesUser(entry.thread, userIds))).toBe(
       true
     )
+
+    const initialQuery = await api.listThreads(spaces, {
+      ...createInitialDashboardQuery(),
+      userIds
+    })
+
+    expect(initialQuery.entries.length).toBeGreaterThan(0)
+    expect(
+      initialQuery.entries.some((entry) => threadInvolvesUser(entry.thread, userIds))
+    ).toBe(true)
   })
 })

@@ -175,7 +175,7 @@ function deduplicateDashboardEntries(entries: DashboardThreadEntry[]): Dashboard
   })
 }
 
-function toDashboardSpaceSummary(space: SpaceResource): DashboardSpaceSummary {
+export function toDashboardSpaceSummary(space: SpaceResource): DashboardSpaceSummary {
   return {
     id: space.id,
     name: space.name,

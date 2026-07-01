@@ -76,12 +76,15 @@ Details und Roadmap: [notifications-plan.md](./notifications-plan.md).
 Beim Öffnen der Kommentar-Sidebar für **einzeln freigegebene Dateien** zeigt die App:
 
 1. einen **Warn-Banner** in der Sidebar,
-2. einmal pro Datei pro Browser-Sitzung einen **Toast** mit Empfehlung zu Ordner-Freigabe oder Project Space.
+2. einen **Hinweis direkt über dem Kommentarfeld**,
+3. beim ersten Kommentar oder der ersten Antwort pro Datei einen **Toast** mit Empfehlung zu Ordner-Freigabe oder Project Space,
+4. einmal pro Datei pro Browser-Sitzung beim Öffnen der Sidebar einen **Toast** (falls noch nicht beim Speichern gezeigt).
 
 Erkennung (Heuristik):
 
-- Mountpoint mit **Share-Root** auf Dateiebene, oder
+- Mountpoint mit **Share-Root** auf Dateiebene, oder Mountpoint-Name entspricht dem Dateinamen (Einzeldatei-Freigabe).
 - Datei im eigenen Space mit **direkten** `shareTypes` (nicht nur „mounted“/vererbt).
+- Fallback: Graph-API `listPermissions`, wenn die Sidebar-Ressource keine `shareTypes` liefert (typisch in der Dateivorschau).
 
 ---
 
