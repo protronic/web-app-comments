@@ -163,6 +163,7 @@ function mapResourceToTargetSummary(
     isFolder,
     resourceType: getResourceTypeFromResource(resource, isFolder),
     mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : undefined,
+    extension: getResourceExtension(resource, name),
     fileId: getGraphFileId(resource),
     privateLink: typeof resource.privateLink === 'string' ? resource.privateLink : undefined,
     tags: Array.isArray(resource.tags) ? [...resource.tags] : []
@@ -207,6 +208,16 @@ function getGraphFileId(resource: Resource): string | undefined {
   const candidate = resource.fileId || resource.id
 
   return isGraphResourceId(candidate) ? candidate : undefined
+}
+
+function getResourceExtension(resource: Resource, name: string): string | undefined {
+  if (typeof resource.extension === 'string' && resource.extension.length > 0) {
+    return resource.extension.toLowerCase()
+  }
+
+  const match = name.match(/\.([^.\\/]+)$/)
+
+  return match?.[1]?.toLowerCase()
 }
 
 function getResourceTypeFromResource(

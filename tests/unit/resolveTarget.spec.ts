@@ -36,6 +36,7 @@ describe('resolve comment dashboard targets', () => {
         path: '/projects/new-name.md',
         type: 'file',
         mimeType: 'text/markdown',
+        extension: 'md',
         privateLink: 'https://test.oc/f/owner%24space%21file-1',
         tags: ['draft'],
         isFolder: false
@@ -50,6 +51,7 @@ describe('resolve comment dashboard targets', () => {
       resourceType: 'file',
       mimeType: 'text/markdown',
       fileId: 'owner$space!file-1',
+      extension: 'md',
       privateLink: 'https://test.oc/f/owner%24space%21file-1',
       tags: ['draft']
     })

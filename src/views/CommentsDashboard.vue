@@ -165,10 +165,11 @@
 
 <script setup lang="ts">
 import { unref } from 'vue'
-import { useRouter, useSpacesStore } from '@opencloud-eu/web-pkg'
+import { useFileActions, useRouter, useSpacesStore } from '@opencloud-eu/web-pkg'
 import { DashboardThreadEntry } from '../types'
 import { getThreadTitleLine } from '../utils/comments'
 import { buildOpenTargetLocation } from '../utils/dashboardNavigation'
+import { buildDashboardResource } from '../utils/dashboardResource'
 import { useCommentsDashboard } from '../composables/useCommentsDashboard'
 import { commentMessages as msg } from '../i18n/messages'
 import { useCommentGettext } from '../i18n/useCommentGettext'
@@ -176,6 +177,7 @@ import { useCommentGettext } from '../i18n/useCommentGettext'
 const { $gettext, current: currentLanguage } = useCommentGettext()
 const router = useRouter()
 const spacesStore = useSpacesStore()
+const { getDefaultAction, triggerDefaultAction } = useFileActions()
 const { entries, total, isLoading, error, availableTags, query, loadDashboard } = useCommentsDashboard()
 
 function getEntryTitle(entry: DashboardThreadEntry): string {
@@ -244,6 +246,24 @@ function openTarget(entry: DashboardThreadEntry) {
 
   if (!space) {
     return
+  }
+
+  if (entry.target.resourceType === 'file') {
+    const resource = buildDashboardResource(space, entry.target)
+    const action = getDefaultAction({
+      space,
+      resources: [resource],
+      omitSystemActions: true
+    })
+
+    if (action) {
+      triggerDefaultAction({
+        space,
+        resources: [resource],
+        omitSystemActions: true
+      })
+      return
+    }
   }
 
   void router.push(buildOpenTargetLocation(space, entry))
