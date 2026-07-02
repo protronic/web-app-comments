@@ -260,6 +260,32 @@ export function useComments(target: () => CommentTarget | null) {
     })
   }
 
+  const deleteAllComments = async (): Promise<boolean> => {
+    const currentTarget = target()
+
+    if (!currentTarget) {
+      return false
+    }
+
+    isSaving.value = true
+    error.value = undefined
+
+    try {
+      await storage.deleteDocument(currentTarget)
+      watchedFileIds.value = new Set()
+      threads.value = []
+      hasLoadedOnce.value = true
+      scrollToLatest.value = false
+      return true
+    } catch (e) {
+      error.value = $gettext(msg.failedToDeleteComments)
+      showErrorMessage({ title: error.value, errors: [e] })
+      return false
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   const runMutation = async (mutation: (currentTarget: CommentTarget) => Promise<void>) => {
     const currentTarget = target()
 
@@ -350,6 +376,7 @@ export function useComments(target: () => CommentTarget | null) {
     replyToThread,
     updateComment,
     deleteComment,
-    setThreadResolved
+    setThreadResolved,
+    deleteAllComments
   }
 }

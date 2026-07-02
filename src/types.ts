@@ -156,4 +156,5 @@ export interface CommentStorage {
     resolved: boolean,
     actor: CommentAuthor
   ): Promise<CommentThread>
+  deleteDocument(target: CommentTarget): Promise<void>
 }

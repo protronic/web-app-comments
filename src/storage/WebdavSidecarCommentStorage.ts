@@ -131,6 +131,25 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
     return thread
   }
 
+  public async deleteDocument(target: CommentTarget): Promise<void> {
+    for (const path of getCommentSidecarReadPaths(target)) {
+      try {
+        await this.webdav.deleteFile(target.space, { path })
+      } catch (error) {
+        if (!isNotFoundError(error)) {
+          throw error
+        }
+      }
+    }
+
+    await syncCommentedTag(
+      this.graph?.tags,
+      this.webdav,
+      target,
+      createEmptyCommentDocument(target)
+    )
+  }
+
   private async loadDocument(target: CommentTarget): Promise<CommentDocument> {
     for (const path of getCommentSidecarReadPaths(target)) {
       try {

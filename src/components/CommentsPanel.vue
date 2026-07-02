@@ -81,6 +81,17 @@
       </div>
 
       <div class="ext:mt-auto ext:flex ext:flex-col ext:gap-2 ext:border-t ext:border-role-outline-variant ext:pt-3">
+        <oc-button
+          v-if="hasLoadedOnce && threads.length > 0"
+          appearance="outline"
+          size="small"
+          class="ext:self-start ext:text-role-error"
+          :disabled="isSaving || (isLoading && !hasLoadedOnce)"
+          @click="confirmDeleteAllComments"
+        >
+          {{ $gettext(msg.deleteAllComments) }}
+        </oc-button>
+
         <p
           v-if="showIndividualShareHint"
           class="ext:m-0 ext:rounded-md ext:border ext:border-role-warning ext:bg-role-warning-container ext:p-2 ext:text-xs ext:text-role-on-warning-container"
@@ -108,6 +119,7 @@
 <script setup lang="ts">
 import { computed, ref, unref, watch } from 'vue'
 import { Resource } from '@opencloud-eu/web-client'
+import { useMessages, useModals } from '@opencloud-eu/web-pkg'
 import { createCommentTarget, resolveSidebarSpace } from '../utils/target'
 import { useComments } from '../composables/useComments'
 import { useIndividualShareCommentHint } from '../composables/useIndividualShareCommentHint'
@@ -118,6 +130,8 @@ import CommentForm from './CommentForm.vue'
 import CommentThread from './CommentThread.vue'
 
 const { $gettext } = useCommentGettext()
+const { showMessage } = useMessages()
+const { dispatchModal } = useModals()
 
 ensureCommentNotificationListener()
 
@@ -169,8 +183,30 @@ const {
   replyToThread,
   updateComment,
   deleteComment,
-  setThreadResolved
+  setThreadResolved,
+  deleteAllComments
 } = useComments(() => unref(commentTarget))
+
+const confirmDeleteAllComments = () => {
+  const target = unref(commentTarget)
+
+  if (!target) {
+    return
+  }
+
+  dispatchModal({
+    title: $gettext(msg.deleteAllCommentsConfirmTitle, { name: target.name }),
+    message: $gettext(msg.deleteAllCommentsConfirmMessage),
+    confirmText: $gettext(msg.delete),
+    onConfirm: async () => {
+      const deleted = await deleteAllComments()
+
+      if (deleted) {
+        showMessage({ title: $gettext(msg.deleteAllCommentsSuccess) })
+      }
+    }
+  })
+}
 
 const handleCreateThread = async (body: string) => {
   warnOnCommentSave()

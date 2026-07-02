@@ -254,6 +254,58 @@ describe('webdav sidecar comments', () => {
     expect(thread.comments[0].deletedAt).toBe('2026-06-28T12:00:00.000Z')
   })
 
+  it('deletes all sidecar paths and removes the commented tag', async () => {
+    const webdav = mock<WebDAV>()
+    const tags = mock<CommentTagsGraphClient>()
+    const target = createCommentTarget(
+      space,
+      mock<Resource>({
+        fileId: 'owner$space!file-1',
+        name: 'README.md',
+        path: '/README.md',
+        isFolder: false
+      })
+    )
+    const storage = new WebdavSidecarCommentStorage(webdav, { tags })
+    webdav.deleteFile.mockResolvedValue(undefined as never)
+
+    await storage.deleteDocument(target)
+
+    expect(webdav.deleteFile).toHaveBeenCalledWith(
+      space,
+      expect.objectContaining({ path: '/.README.md.jsco' })
+    )
+    expect(webdav.deleteFile).toHaveBeenCalledWith(
+      space,
+      expect.objectContaining({ path: '/.README.md.conflu.json' })
+    )
+    expect(webdav.deleteFile).toHaveBeenCalledWith(
+      space,
+      expect.objectContaining({ path: '/.conflu/comments/owner_space_file-1.json' })
+    )
+    expect(tags.unassignTags).toHaveBeenCalledWith({
+      resourceId: 'owner$space!file-1',
+      tags: [COMMENT_TAG]
+    })
+  })
+
+  it('ignores missing sidecar files when deleting the comment document', async () => {
+    const webdav = mock<WebDAV>()
+    const target = createCommentTarget(
+      space,
+      mock<Resource>({
+        fileId: 'file-1',
+        name: 'README.md',
+        path: '/README.md',
+        isFolder: false
+      })
+    )
+    const storage = new WebdavSidecarCommentStorage(webdav)
+    webdav.deleteFile.mockRejectedValue({ status: 404 })
+
+    await expect(storage.deleteDocument(target)).resolves.toBeUndefined()
+  })
+
   it('writes the current target name and path into the sidecar on save', async () => {
     const webdav = mock<WebDAV>()
     const target = createCommentTarget(
