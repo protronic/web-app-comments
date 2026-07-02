@@ -14,7 +14,12 @@ import { buildDashboardEntries, queryDashboardEntries } from '../utils/dashboard
 import { resolveSpaceForSearchResource } from '../utils/dashboardSearch'
 import { enrichTargetLinkFromGraph } from '../utils/graphTargetLinks'
 import { resolveCommentDocumentTarget } from '../utils/resolveTarget'
-import { createCommentTarget, getCommentSidecarReadPaths, getSpaceRootSidecarReadPaths, isDashboardSpaceRoot } from '../utils/target'
+import {
+  createCommentTarget,
+  getCommentSidecarReadPaths,
+  isCommentSidecarPath,
+  isCommentSidecarResourceName
+} from '../utils/target'
 
 export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
   public constructor(
@@ -51,8 +56,7 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       }
 
       try {
-        const target = createCommentTarget(space, resource)
-        const loaded = await this.loadDocumentForTarget(space, target)
+        const loaded = await this.loadThreadsForSearchResource(space, resource)
 
         if (!loaded || loaded.document.threads.length === 0) {
           continue
@@ -75,49 +79,22 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       }
     }
 
-    for (const space of spaces) {
-      if (!isDashboardSpaceRoot(space)) {
-        continue
-      }
-
-      if (query.spaceId && space.id !== query.spaceId) {
-        continue
-      }
-
-      try {
-        await this.loadSpaceRootThreads(space, entries)
-      } catch {
-        continue
-      }
-    }
-
     return queryDashboardEntries(entries, withoutTagRefilter(query))
   }
 
-  private async loadSpaceRootThreads(
+  private async loadThreadsForSearchResource(
     space: SpaceResource,
-    entries: DashboardThreadEntry[]
-  ): Promise<void> {
-    for (const sidecarPath of getSpaceRootSidecarReadPaths(space)) {
-      try {
-        const document = await this.loadDocument(space, sidecarPath)
+    resource: Resource
+  ): Promise<{ document: CommentDocument; sidecarPath: string } | null> {
+    const sidecarPath = getSidecarPathFromSearchResource(resource)
 
-        if (document.threads.length === 0) {
-          continue
-        }
+    if (sidecarPath) {
+      const document = await this.loadDocument(space, sidecarPath)
 
-        const resolvedTarget = await enrichTargetLinkFromGraph(
-          this.graph?.driveItems,
-          space,
-          await resolveCommentDocumentTarget(this.webdav, space, document, sidecarPath)
-        )
-
-        entries.push(...buildDashboardEntries(space, document, resolvedTarget))
-        return
-      } catch {
-        continue
-      }
+      return { document, sidecarPath }
     }
+
+    return this.loadDocumentForTarget(space, createCommentTarget(space, resource))
   }
 
   private async loadDocumentForTarget(
@@ -166,6 +143,22 @@ export class WebdavSidecarDashboardStorage implements CommentsDashboardApi {
       threads: document.threads
     }
   }
+}
+
+function getSidecarPathFromSearchResource(resource: Resource): string | undefined {
+  const path = resource.path?.trim()
+
+  if (path && isCommentSidecarPath(path)) {
+    return path
+  }
+
+  const name = resource.name?.trim()
+
+  if (name && isCommentSidecarResourceName(name)) {
+    return path && path.endsWith(name) ? path : `/${name}`
+  }
+
+  return undefined
 }
 
 function withoutTagRefilter(query: CommentsDashboardQuery): CommentsDashboardQuery {

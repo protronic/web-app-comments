@@ -1,3 +1,4 @@
+import { Resource } from '@opencloud-eu/web-client'
 import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { COMMENT_TAG } from '../constants/tags'
 import { CommentDocument, CommentTarget } from '../types'
@@ -55,19 +56,22 @@ export function hasCommentThreads(document: CommentDocument): boolean {
   return document.threads.length > 0
 }
 
-export async function syncCommentedTag(
+export function getGraphResourceIdFromResource(
+  resource: Pick<Resource, 'fileId' | 'id'> | undefined
+): string | undefined {
+  const candidates = [resource?.fileId, resource?.id].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0
+  )
+
+  return candidates.find(isGraphResourceId)
+}
+
+export async function syncResourceCommentedTag(
   graph: CommentTagsGraphClient | undefined,
-  webdav: WebDAV,
-  target: CommentTarget,
+  resourceId: string | undefined,
   document: CommentDocument
 ): Promise<void> {
-  if (!graph) {
-    return
-  }
-
-  const resourceId = await resolveGraphResourceId(webdav, target)
-
-  if (!resourceId) {
+  if (!graph || !resourceId) {
     return
   }
 
@@ -81,6 +85,25 @@ export async function syncCommentedTag(
   } catch {
     // Tag sync is best-effort and must not block comment storage.
   }
+}
+
+export async function syncSidecarCommentedTag(
+  graph: CommentTagsGraphClient | undefined,
+  sidecarResource: Pick<Resource, 'fileId' | 'id'> | undefined,
+  document: CommentDocument
+): Promise<void> {
+  await syncResourceCommentedTag(graph, getGraphResourceIdFromResource(sidecarResource), document)
+}
+
+export async function syncCommentedTag(
+  graph: CommentTagsGraphClient | undefined,
+  webdav: WebDAV,
+  target: CommentTarget,
+  document: CommentDocument
+): Promise<void> {
+  const resourceId = graph ? await resolveGraphResourceId(webdav, target) : undefined
+
+  await syncResourceCommentedTag(graph, resourceId, document)
 }
 
 function escapeTagTerm(tag: string): string {

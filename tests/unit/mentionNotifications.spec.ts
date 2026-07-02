@@ -46,8 +46,6 @@ describe('mention notifications', () => {
 
   it('detects comment sidecar paths', () => {
     expect(isCommentSidecarPath('/Testordner/.Plan.md.jsco')).toBe(true)
-    expect(isCommentSidecarPath('/Testordner/.Plan.md.conflu.json')).toBe(true)
-    expect(isCommentSidecarPath('/Testordner/.conflu/comments/file-1.json')).toBe(true)
     expect(isCommentSidecarPath('/Testordner/Plan.md')).toBe(false)
   })
 

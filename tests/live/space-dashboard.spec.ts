@@ -52,10 +52,7 @@ describe.runIf(LIVE)('space dashboard diagnostic', () => {
           fileId: root.fileId,
           spaceId: space.id
         })
-        for (const sidecarPath of [
-          '/.conflu/comments/' + space.id.replace(/[^a-zA-Z0-9._-]/g, '_') + '.json',
-          `/.${root.name || space.name}.jsco`
-        ]) {
+        for (const sidecarPath of [`/.${root.name || space.name}.jsco`]) {
           try {
             const body = (await dav.getFileContents(space, { path: sidecarPath })).body
             console.log('found sidecar', space.name, sidecarPath, body.slice(0, 120))

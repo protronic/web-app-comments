@@ -16,7 +16,12 @@ import {
   sortThreads,
   touchThread
 } from '../utils/comments'
-import { CommentTagsGraphClient, isGraphResourceId, syncCommentedTag } from '../utils/commentTags'
+import {
+  CommentTagsGraphClient,
+  isGraphResourceId,
+  syncCommentedTag,
+  syncSidecarCommentedTag
+} from '../utils/commentTags'
 import { SidecarPermissionsGraphClient, syncSidecarPermissions } from '../utils/sidecarPermissions'
 import {
   getCommentDocumentPath,
@@ -132,7 +137,16 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
   }
 
   public async deleteDocument(target: CommentTarget): Promise<void> {
+    const emptyDocument = createEmptyCommentDocument(target)
+    let sidecarResource: Awaited<ReturnType<WebDAV['getFileInfo']>> | undefined
+
     for (const path of getCommentSidecarReadPaths(target)) {
+      try {
+        sidecarResource = await this.webdav.getFileInfo(target.space, { path })
+      } catch {
+        // Sidecar may already be gone.
+      }
+
       try {
         await this.webdav.deleteFile(target.space, { path })
       } catch (error) {
@@ -142,12 +156,8 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
       }
     }
 
-    await syncCommentedTag(
-      this.graph?.tags,
-      this.webdav,
-      target,
-      createEmptyCommentDocument(target)
-    )
+    await syncCommentedTag(this.graph?.tags, this.webdav, target, emptyDocument)
+    await syncSidecarCommentedTag(this.graph?.tags, sidecarResource, emptyDocument)
   }
 
   private async loadDocument(target: CommentTarget): Promise<CommentDocument> {
@@ -189,6 +199,7 @@ export class WebdavSidecarCommentStorage implements CommentStorage {
     }
 
     await syncCommentedTag(this.graph?.tags, this.webdav, target, payload)
+    await syncSidecarCommentedTag(this.graph?.tags, sidecarResource, payload)
 
     if (
       sidecarResource &&

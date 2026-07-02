@@ -1,9 +1,13 @@
 import type { Router } from 'vue-router'
 import type { RouteLocationNamedRaw } from 'vue-router'
 import { SpaceResource } from '@opencloud-eu/web-client'
-import { CommentDocument, DashboardThreadEntry } from '../types'
+import { CommentDocument, DashboardTargetSummary, DashboardThreadEntry } from '../types'
 import { commentMessages as msg } from '../i18n/messages'
-import { getOpenTargetLabel, openDashboardTarget } from './dashboardNavigation'
+import {
+  getOpenTargetLabel,
+  getSelectFileInFilesLabel,
+  openDashboardTargetInFiles
+} from './dashboardNavigation'
 import {
   collectUnreadCommentNotifications,
   dedupeMentionEvents,
@@ -33,10 +37,16 @@ export interface MentionNotificationPresenter {
   }) => unknown
   translate: (message: string, values?: Record<string, string>) => string
   router: Router
-  openTarget: (
+  openTargetInFiles: (
     space: SpaceResource,
     entry: Pick<DashboardThreadEntry, 'space' | 'target'>
   ) => void
+  openTargetInEditor?: (
+    space: SpaceResource,
+    entry: Pick<DashboardThreadEntry, 'space' | 'target'>
+  ) => boolean
+  getEditorOpenLabel?: () => string
+  getFilesViewLabel?: () => string
 }
 
 interface MentionToastItem {
@@ -259,15 +269,36 @@ function buildMentionToastActions(
 
   if (items.length === 1) {
     const item = items[0]
+    const target = item.navigation.target
 
-    actions.push({
-      name: 'open-mentioned-resource',
-      label: () => getOpenTargetLabel(presenter.translate, item.navigation.target),
-      isVisible: () => true,
-      handler: () => {
-        presenter.openTarget(item.space, item.navigation)
-      }
-    })
+    if (target.resourceType === 'file') {
+      actions.push({
+        name: 'open-mentioned-resource-files',
+        label: () =>
+          presenter.getFilesViewLabel?.() ?? getSelectFileInFilesLabel(presenter.translate),
+        isVisible: () => true,
+        handler: () => {
+          presenter.openTargetInFiles(item.space, item.navigation)
+        }
+      })
+      actions.push({
+        name: 'open-mentioned-resource-editor',
+        label: () => presenter.getEditorOpenLabel?.() ?? presenter.translate(msg.openFile),
+        isVisible: () => true,
+        handler: () => {
+          presenter.openTargetInEditor?.(item.space, item.navigation)
+        }
+      })
+    } else {
+      actions.push({
+        name: 'open-mentioned-resource',
+        label: () => getOpenTargetLabel(presenter.translate, target),
+        isVisible: () => true,
+        handler: () => {
+          presenter.openTargetInFiles(item.space, item.navigation)
+        }
+      })
+    }
   }
 
   return actions

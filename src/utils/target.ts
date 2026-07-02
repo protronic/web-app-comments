@@ -36,22 +36,12 @@ function unrefMaybe<T>(value: T | (() => T) | { value: T } | undefined): T | und
   return value as T | undefined
 }
 
-/** @deprecated Legacy sidecar folder; new sidecars live next to the target resource. */
-export const COMMENTS_FOLDER_NAME = '.conflu/comments'
-
 export const COMMENT_SIDECAR_SUFFIX = '.jsco'
-
-/** @deprecated Read fallback for sidecars written before the .jsco rename. */
-export const LEGACY_COMMENT_SIDECAR_SUFFIX = '.conflu.json'
 
 export function isCommentSidecarPath(path: string): boolean {
   const name = path.split('/').filter(Boolean).pop() || path
 
-  return (
-    name.endsWith(COMMENT_SIDECAR_SUFFIX) ||
-    name.endsWith(LEGACY_COMMENT_SIDECAR_SUFFIX) ||
-    path.includes(`/${COMMENTS_FOLDER_NAME}/`)
-  )
+  return name.endsWith(COMMENT_SIDECAR_SUFFIX)
 }
 
 export function isCommentSidecarResourceName(name: string | undefined): boolean {
@@ -59,9 +49,7 @@ export function isCommentSidecarResourceName(name: string | undefined): boolean 
     return false
   }
 
-  return (
-    name.endsWith(COMMENT_SIDECAR_SUFFIX) || name.endsWith(LEGACY_COMMENT_SIDECAR_SUFFIX)
-  )
+  return name.endsWith(COMMENT_SIDECAR_SUFFIX)
 }
 
 export function normalizeResourceNameForSidecar(name: string): string {
@@ -69,8 +57,6 @@ export function normalizeResourceNameForSidecar(name: string): string {
 
   if (normalized.endsWith(COMMENT_SIDECAR_SUFFIX)) {
     normalized = normalized.slice(0, -COMMENT_SIDECAR_SUFFIX.length)
-  } else if (normalized.endsWith(LEGACY_COMMENT_SIDECAR_SUFFIX)) {
-    normalized = normalized.slice(0, -LEGACY_COMMENT_SIDECAR_SUFFIX.length)
   }
 
   while (normalized.startsWith('.')) {
@@ -148,85 +134,22 @@ export function getCommentDocumentPath(target: CommentTarget): string {
   return urlJoin(target.containerPath, getCommentSidecarFileName(target))
 }
 
-/** @deprecated Read fallback for sidecars created before the sibling-file layout. */
-export function getLegacyCommentDirectoryPath(target: CommentTarget): string {
-  return urlJoin(target.containerPath, COMMENTS_FOLDER_NAME)
-}
-
-/** @deprecated Read fallback for sidecars created before the sibling-file layout. */
-export function getLegacyCommentDocumentPath(target: CommentTarget): string {
-  return urlJoin(getLegacyCommentDirectoryPath(target), `${toSafeFileName(target.id)}.json`)
-}
-
-/** @deprecated Read fallback for sibling sidecars written as .{name}.conflu.json. */
-export function getLegacySiblingCommentDocumentPath(target: CommentTarget): string {
-  return urlJoin(target.containerPath, getLegacyCommentSidecarFileName(target))
-}
-
-export function getLegacyCommentSidecarFileName(
-  target: Pick<CommentTarget, 'name' | 'path'>
-): string {
-  const resourceName = normalizeResourceNameForSidecar(
-    target.name || getNameFromPath(target.path) || 'resource'
-  )
-
-  return `.${resourceName}${LEGACY_COMMENT_SIDECAR_SUFFIX}`
-}
-
 export function getCommentSidecarReadPaths(target: CommentTarget): string[] {
-  return [
-    getCommentDocumentPath(target),
-    getLegacySiblingCommentDocumentPath(target),
-    getLegacyCommentDocumentPath(target)
-  ]
-}
-
-export function getSpaceRootSidecarReadPaths(space: SpaceResource): string[] {
-  const paths: string[] = []
-  const spaceName = space.name?.trim()
-
-  if (spaceName) {
-    paths.push(urlJoin('/', `.${spaceName}${COMMENT_SIDECAR_SUFFIX}`))
-    paths.push(urlJoin('/', `.${spaceName}${LEGACY_COMMENT_SIDECAR_SUFFIX}`))
-  }
-
-  paths.push(urlJoin('/', COMMENTS_FOLDER_NAME, `${toSafeFileName(space.id)}.json`))
-
-  return [...new Set(paths)]
-}
-
-export function isDashboardSpaceRoot(space: SpaceResource): boolean {
-  return space.driveType === 'personal' || space.driveType === 'project'
-}
-
-export function toSafeFileName(value: string): string {
-  const safeName = value.replace(/[^a-zA-Z0-9._-]/g, '_')
-  return safeName || 'unknown'
+  return [getCommentDocumentPath(target)]
 }
 
 export function getSidecarContainerPath(sidecarPath: string): string | undefined {
-  for (const suffix of [COMMENT_SIDECAR_SUFFIX, LEGACY_COMMENT_SIDECAR_SUFFIX]) {
-    if (sidecarPath.endsWith(suffix)) {
-      const index = sidecarPath.lastIndexOf('/')
-
-      if (index < 0) {
-        return undefined
-      }
-
-      return sidecarPath.slice(0, index) || '/'
-    }
+  if (!sidecarPath.endsWith(COMMENT_SIDECAR_SUFFIX)) {
+    return undefined
   }
 
-  const marker = '/.conflu/comments/'
-  const index = sidecarPath.indexOf(marker)
+  const index = sidecarPath.lastIndexOf('/')
 
   if (index < 0) {
     return undefined
   }
 
-  const containerPath = sidecarPath.slice(0, index)
-
-  return containerPath || '/'
+  return sidecarPath.slice(0, index) || '/'
 }
 
 export function syncCommentDocumentTarget(

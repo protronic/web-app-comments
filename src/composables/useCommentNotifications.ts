@@ -1,5 +1,6 @@
 import { unref, watch } from 'vue'
 import {
+  useAppsStore,
   useCapabilityStore,
   useClientService,
   useFileActions,
@@ -10,6 +11,7 @@ import {
 } from '@opencloud-eu/web-pkg'
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { CommentDocument } from '../types'
+import { commentMessages as msg } from '../i18n/messages'
 import { useCommentGettext } from '../i18n/useCommentGettext'
 import { COMMENT_TAG } from '../constants/tags'
 import { WebdavSidecarDashboardStorage } from '../storage/WebdavSidecarDashboardStorage'
@@ -29,7 +31,8 @@ import {
   getCommentSidecarReadPaths
 } from '../utils/target'
 import { resolveMentionNavigation, toMentionNavigationEntry } from '../utils/mentionNavigation'
-import { openDashboardTarget } from '../utils/dashboardNavigation'
+import { openDashboardTargetInEditor, openDashboardTargetInFiles } from '../utils/dashboardNavigation'
+import { openResourceWithDefaultEditor } from '../utils/defaultFileEditor'
 import { collectUserIdentityKeys } from '../utils/userIdentity'
 import { debugLog } from '../utils/debugLog'
 import { subscribeCommentSse } from '../utils/commentSseHub'
@@ -79,19 +82,37 @@ export function ensureCommentNotificationListener(): void {
   const spacesStore = useSpacesStore()
   const router = useRouter()
   const { showMessage } = useMessages()
-  const { getDefaultAction, triggerDefaultAction } = useFileActions()
+  const appsStore = useAppsStore()
+  const { getDefaultAction, triggerDefaultAction, openEditor } = useFileActions()
   const { $gettext } = useCommentGettext()
   const dashboard = new WebdavSidecarDashboardStorage(
     clientService.webdav,
     clientService.graphAuthenticated
   )
 
+  const fileActions = {
+    getDefaultAction,
+    triggerDefaultAction
+  }
+
+  const openWithDefaultEditor = (space: SpaceResource, target: DashboardThreadEntry['target']) =>
+    openResourceWithDefaultEditor(
+      space,
+      target,
+      unref(appsStore.fileExtensions),
+      { getDefaultAction, triggerDefaultAction, openEditor },
+      (routeName) => router.hasRoute(routeName)
+    )
+
   const presenter: MentionNotificationPresenter = {
     showMessage,
     translate: (message, values) => $gettext(message, values),
     router,
-    openTarget: (space, entry) =>
-      openDashboardTarget(space, entry, router, { getDefaultAction, triggerDefaultAction })
+    openTargetInFiles: (space, entry) => openDashboardTargetInFiles(space, entry, router),
+    openTargetInEditor: (space, entry) =>
+      openDashboardTargetInEditor(space, entry, router, fileActions, openWithDefaultEditor),
+    getEditorOpenLabel: () => $gettext(msg.openFile),
+    getFilesViewLabel: () => $gettext(msg.selectFileInFiles)
   }
 
   const currentUserIds = () =>

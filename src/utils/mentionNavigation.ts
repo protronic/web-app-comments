@@ -9,7 +9,6 @@ import { relativizeMountpointPath } from './mountpointPaths'
 import {
   COMMENT_SIDECAR_SUFFIX,
   getSidecarContainerPath,
-  LEGACY_COMMENT_SIDECAR_SUFFIX,
   normalizeResourceNameForSidecar,
   resolveSourceResourceFromSidecar
 } from './target'
@@ -53,24 +52,20 @@ export function resourceToDashboardTarget(
 }
 
 export function getSourcePathFromSidecarPath(sidecarPath: string): string | undefined {
-  for (const suffix of [COMMENT_SIDECAR_SUFFIX, LEGACY_COMMENT_SIDECAR_SUFFIX]) {
-    if (!sidecarPath.endsWith(suffix)) {
-      continue
-    }
-
-    const fileName = sidecarPath.split('/').filter(Boolean).pop()
-
-    if (!fileName?.startsWith('.')) {
-      return undefined
-    }
-
-    const resourceName = normalizeResourceNameForSidecar(fileName)
-    const containerPath = getSidecarContainerPath(sidecarPath) || '/'
-
-    return urlJoin(containerPath, resourceName)
+  if (!sidecarPath.endsWith(COMMENT_SIDECAR_SUFFIX)) {
+    return undefined
   }
 
-  return undefined
+  const fileName = sidecarPath.split('/').filter(Boolean).pop()
+
+  if (!fileName?.startsWith('.')) {
+    return undefined
+  }
+
+  const resourceName = normalizeResourceNameForSidecar(fileName)
+  const containerPath = getSidecarContainerPath(sidecarPath) || '/'
+
+  return urlJoin(containerPath, resourceName)
 }
 
 export async function resolveMentionNavigation(

@@ -5,7 +5,8 @@ import { COMMENT_TAG } from '../../src/constants/tags'
 import {
   isGraphResourceId,
   resolveGraphResourceId,
-  syncCommentedTag
+  syncCommentedTag,
+  syncSidecarCommentedTag
 } from '../../src/utils/commentTags'
 import { createCommentTarget } from '../../src/utils/target'
 
@@ -96,6 +97,42 @@ describe('comment tag helpers', () => {
 
     expect(graph.assignTags).toHaveBeenCalledWith({
       resourceId: 'owner$space!item-1',
+      tags: [COMMENT_TAG]
+    })
+  })
+
+  it('assigns the commented tag to the sidecar resource', async () => {
+    const graph = mock<import('../../src/utils/commentTags').CommentTagsGraphClient>()
+
+    await syncSidecarCommentedTag(
+      graph,
+      {
+        fileId: 'owner$space!space-sidecar',
+        id: 'owner$space!space-sidecar'
+      },
+      {
+        version: 1,
+        target: {
+          id: 'owner$space',
+          name: 'Marketing',
+          path: '/',
+          isFolder: true
+        },
+        threads: [
+          {
+            id: 'thread-1',
+            targetId: 'owner$space',
+            status: 'open',
+            createdAt: '2026-06-28T10:00:00.000Z',
+            updatedAt: '2026-06-28T10:00:00.000Z',
+            comments: []
+          }
+        ]
+      }
+    )
+
+    expect(graph.assignTags).toHaveBeenCalledWith({
+      resourceId: 'owner$space!space-sidecar',
       tags: [COMMENT_TAG]
     })
   })

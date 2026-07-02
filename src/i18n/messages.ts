@@ -67,6 +67,7 @@ export const commentMessages = {
   save: 'Save',
   saving: 'Saving…',
   selectTarget: 'Select one file or folder to view comments.',
+  selectFileInFiles: 'Show in files',
   showingThreads: 'Showing %{count} of %{total} threads',
   space: 'Space',
   spaces: 'Spaces',
@@ -77,7 +78,7 @@ export const commentMessages = {
   unanswered: 'Unanswered',
   user: 'User',
   updateComment: 'Update comment',
-  writeComment: 'Write a comment',
+  writeComment: 'Create a new comment',
   writeReply: 'Write a reply',
   replyCount: '%{count} replies'
 } as const

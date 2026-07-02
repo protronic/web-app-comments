@@ -52,4 +52,28 @@ describe('graph target link enrichment', () => {
     await expect(enrichTargetLinkFromGraph(graph, space, target)).resolves.toEqual(target)
     expect(graph.getDriveItem).not.toHaveBeenCalled()
   })
+
+  it('derives the space root file id and enriches space targets from graph', async () => {
+    const graph = {
+      getDriveItem: vi.fn().mockResolvedValue({
+        id: 'owner$space!space',
+        webUrl: 'https://test.oc:9200/f/owner%24space%21space'
+      })
+    }
+    const target: DashboardTargetSummary = {
+      id: 'owner$space',
+      name: 'Demo',
+      path: '/',
+      isFolder: true,
+      resourceType: 'space',
+      tags: []
+    }
+
+    await expect(enrichTargetLinkFromGraph(graph, space, target)).resolves.toEqual({
+      ...target,
+      fileId: 'owner$space!space',
+      privateLink: 'https://test.oc:9200/f/owner%24space%21space'
+    })
+    expect(graph.getDriveItem).toHaveBeenCalledWith('owner$space', 'space')
+  })
 })

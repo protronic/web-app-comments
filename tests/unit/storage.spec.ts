@@ -8,9 +8,7 @@ import { WebdavSidecarCommentStorage } from '../../src/storage/WebdavSidecarComm
 import { WebdavSidecarDashboardStorage } from '../../src/storage/WebdavSidecarDashboardStorage'
 import {
   createCommentTarget,
-  getCommentDocumentPath,
-  getLegacyCommentDirectoryPath,
-  getLegacyCommentDocumentPath
+  getCommentDocumentPath
 } from '../../src/utils/target'
 
 describe('webdav sidecar comments', () => {
@@ -35,8 +33,6 @@ describe('webdav sidecar comments', () => {
     const target = createCommentTarget(space, resource)
 
     expect(getCommentDocumentPath(target)).toBe('/handbook/.README.md.jsco')
-    expect(getLegacyCommentDirectoryPath(target)).toBe('/handbook/.conflu/comments')
-    expect(getLegacyCommentDocumentPath(target)).toBe('/handbook/.conflu/comments/file_1_2.json')
   })
 
   it('assigns the commented tag when creating a thread', async () => {
@@ -62,6 +58,13 @@ describe('webdav sidecar comments', () => {
     const storage = new WebdavSidecarCommentStorage(webdav, { tags, ...graph })
     webdav.getFileContents.mockRejectedValue({ status: 404 })
 
+    webdav.putFileContents.mockResolvedValue({
+      fileId: 'owner$space!sidecar-file',
+      id: 'owner$space!sidecar-file',
+      name: '.README.md.jsco',
+      path: '/.README.md.jsco'
+    } as never)
+
     await storage.createThread(target, {
       body: 'Hello',
       format: 'markdown',
@@ -70,6 +73,53 @@ describe('webdav sidecar comments', () => {
 
     expect(tags.assignTags).toHaveBeenCalledWith({
       resourceId: 'owner$space!file-1',
+      tags: [COMMENT_TAG]
+    })
+    expect(tags.assignTags).toHaveBeenCalledWith({
+      resourceId: 'owner$space!sidecar-file',
+      tags: [COMMENT_TAG]
+    })
+  })
+
+  it('tags the space-root sidecar when creating a space comment', async () => {
+    const webdav = mock<WebDAV>()
+    const tags = mock<CommentTagsGraphClient>()
+    const target = createCommentTarget(
+      mock<SpaceResource>({
+        id: 'owner$space',
+        name: 'Marketing',
+        driveType: 'project'
+      }),
+      mock<Resource>({
+        fileId: 'owner$space',
+        id: 'owner$space',
+        name: 'Marketing',
+        path: '/',
+        isFolder: true
+      })
+    )
+    const storage = new WebdavSidecarCommentStorage(webdav, { tags })
+
+    webdav.getFileContents.mockRejectedValue({ status: 404 })
+    webdav.putFileContents.mockResolvedValue({
+      fileId: 'owner$space!space-sidecar',
+      id: 'owner$space!space-sidecar',
+      name: '.Marketing.jsco',
+      path: '/.Marketing.jsco'
+    } as never)
+
+    await storage.createThread(target, {
+      body: 'Space kickoff',
+      format: 'markdown',
+      author: { id: 'marie', displayName: 'Marie' }
+    })
+
+    expect(webdav.putFileContents).toHaveBeenCalledWith(
+      target.space,
+      expect.objectContaining({ path: '/.Marketing.jsco' })
+    )
+    expect(tags.assignTags).toHaveBeenCalledWith({
+      resourceId: 'owner$space!space-sidecar',
       tags: [COMMENT_TAG]
     })
   })
@@ -152,61 +202,6 @@ describe('webdav sidecar comments', () => {
     )
   })
 
-  it('reads legacy sidecars from .conflu/comments when the sibling file is missing', async () => {
-    const webdav = mock<WebDAV>()
-    const target = createCommentTarget(
-      space,
-      mock<Resource>({
-        fileId: 'file-1',
-        name: 'README.md',
-        path: '/README.md',
-        isFolder: false
-      })
-    )
-    const storage = new WebdavSidecarCommentStorage(webdav)
-
-    webdav.getFileContents.mockImplementation(async (_space, { path }) => {
-      if (path === '/.README.md.jsco' || path === '/.README.md.conflu.json') {
-        throw { status: 404 }
-      }
-
-      if (path === '/.conflu/comments/file-1.json') {
-        return {
-          body: JSON.stringify({
-            version: 1,
-            target: { id: target.id, name: target.name, path: target.path, isFolder: false },
-            threads: [
-              {
-                id: 'thread-1',
-                targetId: target.id,
-                status: 'open',
-                createdAt: '2026-06-28T11:00:00.000Z',
-                updatedAt: '2026-06-28T11:00:00.000Z',
-                comments: [
-                  {
-                    id: 'comment-1',
-                    body: 'Legacy sidecar',
-                    format: 'markdown',
-                    author: { id: 'marie', displayName: 'Marie' },
-                    createdAt: '2026-06-28T11:00:00.000Z'
-                  }
-                ]
-              }
-            ]
-          })
-        } as never
-      }
-
-      throw new Error(`unexpected path ${path}`)
-    })
-
-    const threads = await storage.list(target)
-
-    expect(threads).toHaveLength(1)
-    expect(threads[0]?.comments[0]?.body).toBe('Legacy sidecar')
-    expect(webdav.putFileContents).not.toHaveBeenCalled()
-  })
-
   it('marks comments as deleted instead of dropping thread history', async () => {
     const webdav = mock<WebDAV>()
     const target = createCommentTarget(
@@ -267,6 +262,12 @@ describe('webdav sidecar comments', () => {
       })
     )
     const storage = new WebdavSidecarCommentStorage(webdav, { tags })
+    webdav.getFileInfo.mockResolvedValue({
+      fileId: 'owner$space!sidecar-file',
+      id: 'owner$space!sidecar-file',
+      name: '.README.md.jsco',
+      path: '/.README.md.jsco'
+    } as never)
     webdav.deleteFile.mockResolvedValue(undefined as never)
 
     await storage.deleteDocument(target)
@@ -275,16 +276,13 @@ describe('webdav sidecar comments', () => {
       space,
       expect.objectContaining({ path: '/.README.md.jsco' })
     )
-    expect(webdav.deleteFile).toHaveBeenCalledWith(
-      space,
-      expect.objectContaining({ path: '/.README.md.conflu.json' })
-    )
-    expect(webdav.deleteFile).toHaveBeenCalledWith(
-      space,
-      expect.objectContaining({ path: '/.conflu/comments/owner_space_file-1.json' })
-    )
+    expect(webdav.deleteFile).toHaveBeenCalledTimes(1)
     expect(tags.unassignTags).toHaveBeenCalledWith({
       resourceId: 'owner$space!file-1',
+      tags: [COMMENT_TAG]
+    })
+    expect(tags.unassignTags).toHaveBeenCalledWith({
+      resourceId: 'owner$space!sidecar-file',
       tags: [COMMENT_TAG]
     })
   })

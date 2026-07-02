@@ -96,8 +96,6 @@ Sidecar layout:
 
 Example: `/projects/Plan.md` → `/projects/.Plan.md.jsco`
 
-Legacy sidecars under `{container}/.conflu/comments/{fileId}.json` are still read when present.
-
 Each JSON document contains `threads[]` with `status`, `comments[]`, and a `target` snapshot. The dashboard resolves live names and paths from WebDAV on load.
 
 See [docs/](docs/) for the storage model, dashboard API, and planned native backend.
@@ -223,7 +221,7 @@ curl -k -s -u "${OC_USER}:${OC_PASS}" ${OC_RESOLVE} \
   -X PROPFIND \
   "${OC_HOST}/dav/spaces/${SPACE_ID}/Testordner/" \
   -H 'Depth: 1' \
-  | grep -E '\\.jsco|\\.conflu/comments'
+  | grep -E '\\.jsco'
 ```
 
 **Read one sidecar**

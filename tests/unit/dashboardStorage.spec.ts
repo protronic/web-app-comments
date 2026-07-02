@@ -91,84 +91,6 @@ describe('WebdavSidecarDashboardStorage', () => {
     expect(result.entries[0]?.isAnswered).toBe(true)
   })
 
-  it('loads legacy sidecars when the sibling file is missing', async () => {
-    const webdav = mock<WebDAV>()
-    const resource = mock<SearchResource>({
-      storageId: 'owner$space',
-      fileId: 'owner$space!file-1',
-      id: 'owner$space!file-1',
-      name: 'Plan.md',
-      path: '/Plan.md',
-      isFolder: false,
-      tags: [COMMENT_TAG],
-      highlights: ''
-    })
-    const storage = new WebdavSidecarDashboardStorage(webdav)
-
-    webdav.search.mockResolvedValue({
-      resources: [resource],
-      totalResults: 1
-    } as never)
-    webdav.getFileContents.mockImplementation(async (_space, { path }) => {
-      if (path === '/.Plan.md.jsco') {
-        throw new Error('not found')
-      }
-
-      if (path === '/.conflu/comments/owner_space_file-1.json') {
-        return {
-          body: JSON.stringify({
-            version: 1,
-            target: {
-              id: 'file-1',
-              name: 'Plan.md',
-              path: '/Plan.md',
-              isFolder: false
-            },
-            threads: [
-              {
-                id: 'thread-1',
-                targetId: 'file-1',
-                status: 'open',
-                createdAt: '2026-06-28T10:00:00.000Z',
-                updatedAt: '2026-06-28T10:00:00.000Z',
-                comments: [
-                  {
-                    id: 'comment-1',
-                    body: 'Legacy sidecar',
-                    format: 'markdown',
-                    author: { id: 'alice', displayName: 'Alice' },
-                    createdAt: '2026-06-28T10:00:00.000Z'
-                  }
-                ]
-              }
-            ]
-          })
-        } as never
-      }
-
-      throw new Error(`unexpected path ${path}`)
-    })
-    webdav.getFileInfo.mockResolvedValue(
-      mock({
-        fileId: 'owner$space!file-1',
-        id: 'owner$space!file-1',
-        name: 'Plan.md',
-        path: '/Plan.md',
-        isFolder: false,
-        tags: [COMMENT_TAG]
-      })
-    )
-
-    const result = await storage.listThreads([space], {
-      tags: [COMMENT_TAG],
-      status: 'all',
-      answered: 'all'
-    })
-
-    expect(result.total).toBe(1)
-    expect(result.entries[0]?.thread.comments[0]?.body).toBe('Legacy sidecar')
-  })
-
   it('keeps tagged search results when resolved resources omit tags', async () => {
     const webdav = mock<WebDAV>()
     const resource = mock<SearchResource>({
@@ -239,49 +161,53 @@ describe('WebdavSidecarDashboardStorage', () => {
     expect(result.entries[0]?.target.name).toBe('Plan.md')
   })
 
-  it('loads space-root sidecars even when tag search misses project spaces', async () => {
+  it('loads tagged space-root sidecars from tag search', async () => {
     const webdav = mock<WebDAV>()
+    const sidecarResource = mock<SearchResource>({
+      storageId: 'owner$space',
+      fileId: 'owner$space!space-sidecar',
+      id: 'owner$space!space-sidecar',
+      name: '.Marketing.jsco',
+      path: '/.Marketing.jsco',
+      isFolder: false,
+      tags: [COMMENT_TAG],
+      highlights: ''
+    })
     const storage = new WebdavSidecarDashboardStorage(webdav)
 
     webdav.search.mockResolvedValue({
-      resources: [],
-      totalResults: 0
+      resources: [sidecarResource],
+      totalResults: 1
     } as never)
-    webdav.getFileContents.mockImplementation(async (_space, { path }) => {
-      if (path === '/.Marketing.jsco') {
-        return {
-          body: JSON.stringify({
-            version: 1,
-            target: {
-              id: 'owner$space',
-              name: 'Marketing',
-              path: '/',
-              isFolder: true
-            },
-            threads: [
+    webdav.getFileContents.mockResolvedValue({
+      body: JSON.stringify({
+        version: 1,
+        target: {
+          id: 'owner$space',
+          name: 'Marketing',
+          path: '/',
+          isFolder: true
+        },
+        threads: [
+          {
+            id: 'thread-space',
+            targetId: 'owner$space',
+            status: 'open',
+            createdAt: '2026-06-28T10:00:00.000Z',
+            updatedAt: '2026-06-28T10:00:00.000Z',
+            comments: [
               {
-                id: 'thread-space',
-                targetId: 'owner$space',
-                status: 'open',
-                createdAt: '2026-06-28T10:00:00.000Z',
-                updatedAt: '2026-06-28T10:00:00.000Z',
-                comments: [
-                  {
-                    id: 'comment-space',
-                    body: 'Space kickoff',
-                    format: 'markdown',
-                    author: { id: 'alice', displayName: 'Alice' },
-                    createdAt: '2026-06-28T10:00:00.000Z'
-                  }
-                ]
+                id: 'comment-space',
+                body: 'Space kickoff',
+                format: 'markdown',
+                author: { id: 'alice', displayName: 'Alice' },
+                createdAt: '2026-06-28T10:00:00.000Z'
               }
             ]
-          })
-        } as never
-      }
-
-      throw new Error('not found')
-    })
+          }
+        ]
+      })
+    } as never)
 
     const result = await storage.listThreads([space], {
       tags: [COMMENT_TAG],
@@ -290,8 +216,31 @@ describe('WebdavSidecarDashboardStorage', () => {
       type: 'space'
     })
 
+    expect(webdav.getFileContents).toHaveBeenCalledWith(
+      space,
+      expect.objectContaining({ path: '/.Marketing.jsco' })
+    )
     expect(result.total).toBe(1)
     expect(result.entries[0]?.target.resourceType).toBe('space')
     expect(result.entries[0]?.target.name).toBe('Marketing')
+  })
+
+  it('does not probe space-root sidecars when tag search returns no hits', async () => {
+    const webdav = mock<WebDAV>()
+    const storage = new WebdavSidecarDashboardStorage(webdav)
+
+    webdav.search.mockResolvedValue({
+      resources: [],
+      totalResults: 0
+    } as never)
+
+    const result = await storage.listThreads([space], {
+      tags: [COMMENT_TAG],
+      status: 'all',
+      answered: 'all'
+    })
+
+    expect(webdav.getFileContents).not.toHaveBeenCalled()
+    expect(result.total).toBe(0)
   })
 })

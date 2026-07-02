@@ -91,6 +91,7 @@ export interface DashboardTargetSummary {
   mimeType?: string
   extension?: string
   fileId?: string
+  parentFileId?: string
   privateLink?: string
   tags: string[]
 }

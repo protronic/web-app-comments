@@ -147,7 +147,7 @@ describe('resolve comment dashboard targets', () => {
     })
 
     await expect(
-      resolveCommentDocumentTarget(webdav, space, folderDocument, '/Renamed folder/.conflu/comments/folder-1.json')
+      resolveCommentDocumentTarget(webdav, space, folderDocument, '/Renamed folder/.Old folder.jsco')
     ).resolves.toEqual({
       id: 'folder-1',
       name: 'Renamed folder',
@@ -190,7 +190,7 @@ describe('resolve comment dashboard targets', () => {
       path: '/',
       isFolder: true,
       resourceType: 'space',
-      fileId: 'space-root$id',
+      fileId: 'space-root$id!id',
       privateLink: undefined,
       tags: []
     })
@@ -222,7 +222,7 @@ describe('resolve comment dashboard targets', () => {
         webdav,
         projectSpace,
         spaceDocument,
-        '/.conflu/comments/space-root_id.json'
+        '/.Project space.jsco'
       )
     ).resolves.toEqual({
       id: 'space-root$id',
@@ -230,7 +230,7 @@ describe('resolve comment dashboard targets', () => {
       path: '/',
       isFolder: true,
       resourceType: 'space',
-      fileId: 'space-root$id',
+      fileId: 'space-root$id!id',
       privateLink: undefined,
       tags: []
     })
@@ -279,7 +279,7 @@ describe('resolve comment dashboard targets', () => {
         webdav,
         space,
         folderDocument,
-        '/Testordner/.conflu/comments/folder-1.json'
+        '/Testordner/.Old folder.jsco'
       )
     ).resolves.toEqual({
       id: 'folder-1',
@@ -288,6 +288,77 @@ describe('resolve comment dashboard targets', () => {
       isFolder: true,
       resourceType: 'folder',
       tags: []
+    })
+  })
+
+  it('derives nested file paths from the sidecar container when webdav reports the space root', async () => {
+    const fileDocument: CommentDocument = {
+      version: 1,
+      target: {
+        id: 'owner$space!file-1',
+        name: 'Neue Datei.txt',
+        path: '/',
+        isFolder: false
+      },
+      threads: []
+    }
+
+    webdav.getFileInfo.mockResolvedValue(
+      mock<Resource>({
+        fileId: 'owner$space!file-1',
+        id: 'owner$space!file-1',
+        name: 'Neue Datei.txt',
+        path: '/',
+        type: 'file',
+        isFolder: false
+      })
+    )
+
+    await expect(
+      resolveCommentDocumentTarget(
+        webdav,
+        space,
+        fileDocument,
+        '/Neuer Ordner/.Neue Datei.txt.jsco'
+      )
+    ).resolves.toMatchObject({
+      id: 'owner$space!file-1',
+      name: 'Neue Datei.txt',
+      path: '/Neuer Ordner/Neue Datei.txt',
+      resourceType: 'file'
+    })
+  })
+
+  it('derives root-level file paths from sidecars directly under the space root', async () => {
+    const namedSpace = mock<SpaceResource>({ name: 'Admin' })
+    const fileDocument: CommentDocument = {
+      version: 1,
+      target: {
+        id: 'owner$space!file-1',
+        name: 'Neue Datei.ods',
+        path: '/',
+        isFolder: false
+      },
+      threads: []
+    }
+
+    webdav.getFileInfo.mockResolvedValue(
+      mock<Resource>({
+        fileId: 'owner$space!file-1',
+        id: 'owner$space!file-1',
+        name: 'Neue Datei.ods',
+        path: '/',
+        type: 'file',
+        isFolder: false
+      })
+    )
+
+    await expect(
+      resolveCommentDocumentTarget(webdav, namedSpace, fileDocument, '/.Neue Datei.ods.jsco')
+    ).resolves.toMatchObject({
+      name: 'Neue Datei.ods',
+      path: '/Neue Datei.ods',
+      resourceType: 'file'
     })
   })
 })

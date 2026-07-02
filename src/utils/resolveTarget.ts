@@ -3,6 +3,7 @@ import type { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { CommentDocument, DashboardTargetSummary } from '../types'
 import { getSidecarContainerPath, getStableResourceId, isCommentSidecarResourceName, normalizeResourceNameForSidecar } from './target'
 import { isGraphResourceId } from './commentTags'
+import { deriveSpaceRootFileId } from './spaceRootFileId'
 import { relativizeMountpointPath } from './mountpointPaths'
 
 export interface CommentDocumentRef {
@@ -26,7 +27,7 @@ export async function resolveCommentDocumentTarget(
   if (fallback.isFolder && containerPath && containerPath !== '/') {
     try {
       const resource = await webdav.getFileInfo(space, { path: containerPath })
-      return mapResourceToTargetSummary(resource, fallback, space)
+      return finalizeResolvedTarget(webdav, space, mapResourceToTargetSummary(resource, fallback, space), sidecarPath)
     } catch {
       // Fall back to the lookups below.
     }
@@ -38,17 +39,22 @@ export async function resolveCommentDocumentTarget(
       const resolved = mapResourceToTargetSummary(resource, fallback, space)
 
       if (!shouldRetryFolderLookup(resolved, fallback)) {
-        return resolved
+        return finalizeResolvedTarget(webdav, space, resolved, sidecarPath)
       }
     } catch {
       // Fall back to path lookup below.
     }
   }
 
-  if (fallback.path) {
+  if (fallback.path && fallback.path !== '/') {
     try {
       const resource = await webdav.getFileInfo(space, { path: fallback.path })
-      return mapResourceToTargetSummary(resource, fallback, space)
+      return finalizeResolvedTarget(
+        webdav,
+        space,
+        mapResourceToTargetSummary(resource, fallback, space),
+        sidecarPath
+      )
     } catch {
       // Fall back to sidecar container lookup below.
     }
@@ -59,13 +65,23 @@ export async function resolveCommentDocumentTarget(
       const resource = await webdav.getFileInfo(space, { path: containerPath })
 
       if (fallback.isFolder || resource.isFolder) {
-        return mapResourceToTargetSummary(resource, fallback, space)
+        return finalizeResolvedTarget(
+          webdav,
+          space,
+          mapResourceToTargetSummary(resource, fallback, space),
+          sidecarPath
+        )
       }
 
       if (fallback.id) {
         try {
           const fileResource = await webdav.getFileInfo(space, { fileId: fallback.id })
-          return mapResourceToTargetSummary(fileResource, fallback, space)
+          return finalizeResolvedTarget(
+            webdav,
+            space,
+            mapResourceToTargetSummary(fileResource, fallback, space),
+            sidecarPath
+          )
         } catch {
           // Keep trying with the sidecar snapshot below.
         }
@@ -75,7 +91,106 @@ export async function resolveCommentDocumentTarget(
     }
   }
 
-  return mapFallbackTargetSummary(fallback, space)
+  return finalizeResolvedTarget(
+    webdav,
+    space,
+    mapFallbackTargetSummary(fallback, space),
+    sidecarPath
+  )
+}
+
+async function finalizeResolvedTarget(
+  webdav: WebDAV,
+  space: SpaceResource,
+  target: DashboardTargetSummary,
+  sidecarPath?: string
+): Promise<DashboardTargetSummary> {
+  return enrichTargetWithParentFileId(webdav, space, applySidecarContainerPath(space, target, sidecarPath))
+}
+
+export function applySidecarContainerPath(
+  space: SpaceResource,
+  target: DashboardTargetSummary,
+  sidecarPath?: string
+): DashboardTargetSummary {
+  if (target.resourceType !== 'file' || target.isFolder) {
+    return target
+  }
+
+  const containerPath = sidecarPath ? getSidecarContainerPath(sidecarPath) : undefined
+
+  if (!containerPath) {
+    return target
+  }
+
+  const currentPath = target.path?.trim()
+
+  if (currentPath && currentPath !== '/') {
+    return target
+  }
+
+  const fileName = target.name?.trim()
+
+  if (!fileName) {
+    return target
+  }
+
+  const derivedPath =
+    containerPath === '/'
+      ? `/${fileName}`
+      : `${containerPath}/${fileName}`.replace(/\/{2,}/g, '/')
+
+  return {
+    ...target,
+    path: relativizeMountpointPath(space, derivedPath)
+  }
+}
+
+async function enrichTargetWithParentFileId(
+  webdav: WebDAV,
+  space: SpaceResource,
+  target: DashboardTargetSummary
+): Promise<DashboardTargetSummary> {
+  if (target.resourceType !== 'file' || target.parentFileId) {
+    return target
+  }
+
+  const parentPath = getParentFolderPath(target.path)
+
+  if (!parentPath) {
+    return target
+  }
+
+  try {
+    const parent = await webdav.getFileInfo(space, { path: parentPath })
+    const parentFileId = getGraphFileId(parent)
+
+    if (!parentFileId || parentFileId === target.fileId) {
+      return target
+    }
+
+    return {
+      ...target,
+      parentFileId
+    }
+  } catch {
+    return target
+  }
+}
+
+function getParentFolderPath(path: string): string | undefined {
+  if (!path || path === '/') {
+    return undefined
+  }
+
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  const slashIndex = normalized.lastIndexOf('/')
+
+  if (slashIndex <= 0) {
+    return '/'
+  }
+
+  return normalized.slice(0, slashIndex) || '/'
 }
 
 export async function resolveCommentDocumentTargets(
@@ -143,13 +258,15 @@ function mapSpaceRootTargetSummary(
   fallback: CommentDocument['target'],
   space: SpaceResource
 ): DashboardTargetSummary {
+  const fileId = deriveSpaceRootFileId(space, fallback)
+
   return {
     id: space.id,
     name: space.name || fallback.name,
     path: '/',
     isFolder: true,
     resourceType: 'space',
-    fileId: typeof space.fileId === 'string' ? space.fileId : space.id,
+    fileId: fileId || (typeof space.fileId === 'string' ? space.fileId : space.id),
     privateLink: typeof space.privateLink === 'string' ? space.privateLink : undefined,
     tags: []
   }

@@ -6,7 +6,7 @@ import {
   presentMentionNotifications,
   presentPolledMentionEntries
 } from '../../src/utils/mentionNotificationPresenter'
-import { openDashboardTarget } from '../../src/utils/dashboardNavigation'
+import { openDashboardTargetInEditor, openDashboardTargetInFiles } from '../../src/utils/dashboardNavigation'
 import { CommentDocument } from '../../src/types'
 
 describe('mention notification presenter', () => {
@@ -63,7 +63,15 @@ describe('mention notification presenter', () => {
         showMessage,
         translate: (message) => message,
         router: { push } as never,
-        openTarget: (space, entry) => openDashboardTarget(space, entry, { push } as never)
+        openTargetInFiles: (space, entry) =>
+          openDashboardTargetInFiles(space, entry, { push } as never),
+        openTargetInEditor: (space, entry) =>
+          openDashboardTargetInEditor(space, entry, { push } as never, {
+            getDefaultAction: () => ({ name: 'editor-text-editor' }),
+            triggerDefaultAction: vi.fn()
+          }),
+        getEditorOpenLabel: () => 'Open file',
+        getFilesViewLabel: () => 'Show in files'
       },
       space,
       document,
@@ -93,7 +101,8 @@ describe('mention notification presenter', () => {
     const toast = showMessage.mock.calls[0]?.[0]
     expect(toast?.actions?.map((action: { name: string }) => action.name)).toEqual([
       'open-comment-dashboard',
-      'open-mentioned-resource'
+      'open-mentioned-resource-files',
+      'open-mentioned-resource-editor'
     ])
     toast?.actions?.[0]?.handler()
     expect(push).toHaveBeenCalledWith({ name: 'comments-dashboard' })
@@ -120,8 +129,8 @@ describe('mention notification presenter', () => {
         showMessage,
         translate: (message) => message,
         router: { push: vi.fn() } as never,
-        openTarget: (space, entry) =>
-          openDashboardTarget(space, entry, { push: vi.fn() } as never)
+        openTargetInFiles: (space, entry) =>
+          openDashboardTargetInFiles(space, entry, { push: vi.fn() } as never)
       },
       [
         { space, entry },

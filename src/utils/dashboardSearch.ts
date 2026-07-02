@@ -136,7 +136,7 @@ function scoreMountpointCandidate(space: SpaceResource, resource?: SearchResourc
 }
 
 function isSidecarMount(name: string): boolean {
-  return name.startsWith('.') && (name.endsWith('.jsco') || name.endsWith('.conflu.json'))
+  return name.startsWith('.') && name.endsWith('.jsco')
 }
 
 function looksLikeSingleFileMount(name: string): boolean {

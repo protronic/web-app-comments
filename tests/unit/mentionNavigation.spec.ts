@@ -3,7 +3,7 @@ import { SpaceResource } from '@opencloud-eu/web-client'
 import { WebDAV } from '@opencloud-eu/web-client/webdav'
 import { mock } from 'vitest-mock-extended'
 import { getSourcePathFromSidecarPath, resolveMentionNavigation } from '../../src/utils/mentionNavigation'
-import { openDashboardTarget } from '../../src/utils/dashboardNavigation'
+import { openDashboardTargetInEditor, openDashboardTargetInFiles } from '../../src/utils/dashboardNavigation'
 import {
   buildCommentDashboardLocation,
   presentMentionNotifications
@@ -47,7 +47,7 @@ describe('mention navigation helpers', () => {
         path: '/',
         isFolder: true,
         resourceType: 'space',
-        fileId: 'space-root$id',
+        fileId: 'space-root$id!id',
         tags: []
       }
     })
@@ -105,7 +105,15 @@ describe('mention notification presenter', () => {
         showMessage,
         translate: (message) => message,
         router: { push } as never,
-        openTarget: (space, entry) => openDashboardTarget(space, entry, { push } as never)
+        openTargetInFiles: (space, entry) =>
+          openDashboardTargetInFiles(space, entry, { push } as never),
+        openTargetInEditor: (space, entry) =>
+          openDashboardTargetInEditor(space, entry, { push } as never, {
+            getDefaultAction: () => ({ name: 'editor-text-editor' }),
+            triggerDefaultAction: vi.fn()
+          }),
+        getEditorOpenLabel: () => 'Open file',
+        getFilesViewLabel: () => 'Show in files'
       },
       space,
       document,
@@ -135,14 +143,22 @@ describe('mention notification presenter', () => {
     const actions = showMessage.mock.calls[0]?.[0]?.actions ?? []
     expect(actions.map((action: { name: string }) => action.name)).toEqual([
       'open-comment-dashboard',
-      'open-mentioned-resource'
+      'open-mentioned-resource-files',
+      'open-mentioned-resource-editor'
     ])
     actions[0]?.handler()
     expect(push).toHaveBeenCalledWith(buildCommentDashboardLocation())
     actions[1]?.handler()
     expect(push).toHaveBeenLastCalledWith({
-      name: 'resolvePrivateLink',
-      params: { fileId: 'owner$space!file-1' }
+      name: 'files-spaces-generic',
+      params: {
+        driveAliasAndItem: 'mount/Share'
+      },
+      query: {
+        fileId: 'owner$space!file-1',
+        scrollTo: 'owner$space!file-1',
+        details: 'comments'
+      }
     })
   })
 })

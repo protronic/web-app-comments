@@ -45,8 +45,6 @@ describe.runIf(LIVE)('webdav listFiles exposes comment sidecars', () => {
     )
     const testordnerSidecars =
       testordnerListing.children?.filter((child) => child.name?.endsWith('.jsco')) ?? []
-    const legacyConfluFolder = testordnerListing.children?.some((child) => child.name === '.conflu')
-
-    expect(testordnerSidecars.length + (legacyConfluFolder ? 1 : 0)).toBeGreaterThan(0)
+    expect(testordnerSidecars.length).toBeGreaterThan(0)
   })
 })

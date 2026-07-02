@@ -172,9 +172,17 @@
             </p>
           </div>
 
-          <div class="ext:mt-3 ext:flex ext:gap-2">
-            <oc-button appearance="outline" size="small" @click="openTarget(entry)">
-              {{ openTargetLabel(entry) }}
+          <div class="ext:mt-3 ext:flex ext:flex-wrap ext:gap-2">
+            <template v-if="entry.target.resourceType === 'file'">
+              <oc-button appearance="outline" size="small" @click="openInFiles(entry)">
+                {{ getFilesViewLabel() }}
+              </oc-button>
+              <oc-button appearance="outline" size="small" @click="openInEditor(entry)">
+                {{ getEditorOpenLabel() }}
+              </oc-button>
+            </template>
+            <oc-button v-else appearance="outline" size="small" @click="openInFiles(entry)">
+              {{ getPrimaryOpenLabel(entry.target) }}
             </oc-button>
           </div>
         </article>
@@ -184,21 +192,55 @@
 </template>
 
 <script setup lang="ts">
-import { unref } from 'vue'
-import { useFileActions, useRouter, useSpacesStore } from '@opencloud-eu/web-pkg'
+import { onMounted, unref, watch } from 'vue'
 import { DashboardThreadEntry } from '../types'
 import { getThreadTitleLine } from '../utils/comments'
-import { getOpenTargetLabel, openDashboardTarget } from '../utils/dashboardNavigation'
 import { useCommentsDashboard } from '../composables/useCommentsDashboard'
+import { useDashboardTargetNavigation } from '../composables/useDashboardTargetNavigation'
 import { commentMessages as msg } from '../i18n/messages'
 import { useCommentGettext } from '../i18n/useCommentGettext'
+import { COMMENTS_NAV_DEBUG_BUILD, debugLog } from '../utils/debugLog'
 
 const { $gettext, current: currentLanguage } = useCommentGettext()
-const router = useRouter()
-const spacesStore = useSpacesStore()
-const { getDefaultAction, triggerDefaultAction } = useFileActions()
+const {
+  getEditorOpenLabel,
+  getFilesViewLabel,
+  getPrimaryOpenLabel,
+  openInEditor,
+  openInFiles
+} = useDashboardTargetNavigation()
 const { entries, total, isLoading, error, availableTags, query, filtersActive, resetFilters, loadDashboard } =
   useCommentsDashboard()
+
+onMounted(() => {
+  debugLog(
+    'CommentsDashboard.vue:onMounted',
+    'comments dashboard mounted',
+    { build: COMMENTS_NAV_DEBUG_BUILD },
+    'UI',
+    'dashboard-mount'
+  )
+})
+
+watch(
+  entries,
+  (value) => {
+    debugLog(
+      'CommentsDashboard.vue:entries',
+      'dashboard entries rendered',
+      {
+        build: COMMENTS_NAV_DEBUG_BUILD,
+        count: value.length,
+        buttonMode: value.map((entry) =>
+          entry.target.resourceType === 'file' ? 'dual' : 'single'
+        )
+      },
+      'UI',
+      'dashboard-entries'
+    )
+  },
+  { immediate: true }
+)
 
 function getEntryTitle(entry: DashboardThreadEntry): string {
   const preview = getThreadTitleLine(entry.thread)
@@ -248,19 +290,5 @@ function formatResourceType(resourceType: DashboardThreadEntry['target']['resour
     default:
       return $gettext(msg.file)
   }
-}
-
-function openTargetLabel(entry: DashboardThreadEntry): string {
-  return getOpenTargetLabel($gettext, entry.target)
-}
-
-function openTarget(entry: DashboardThreadEntry) {
-  const space = (unref(spacesStore.spaces) ?? []).find((candidate) => candidate.id === entry.space.id)
-
-  if (!space) {
-    return
-  }
-
-  openDashboardTarget(space, entry, router, { getDefaultAction, triggerDefaultAction })
 }
 </script>

@@ -1,9 +1,10 @@
 import { Resource, SpaceResource } from '@opencloud-eu/web-client'
 import { mock } from 'vitest-mock-extended'
 import {
+  createCommentTarget,
+  getCommentDocumentPath,
   getCommentSidecarFileName,
   getSidecarContainerPath,
-  getSpaceRootSidecarReadPaths,
   normalizeResourceNameForSidecar,
   resolveSidebarSpace,
   resolveSourceResourceFromSidecar
@@ -46,30 +47,29 @@ describe('resolveSidebarSpace', () => {
 })
 
 describe('getSidecarContainerPath', () => {
-  it('derives the commented resource container from a legacy sidecar path', () => {
-    expect(
-      getSidecarContainerPath('/Testordner/.conflu/comments/file-1.json')
-    ).toBe('/Testordner')
-  })
-
   it('derives the commented resource container from a sibling sidecar path', () => {
     expect(getSidecarContainerPath('/projects/.Plan.md.jsco')).toBe('/projects')
   })
 })
 
-describe('getSpaceRootSidecarReadPaths', () => {
-  it('includes sibling and legacy sidecar paths for a space root', () => {
+describe('space-root sidecar paths', () => {
+  it('stores space comments in a tagged sidecar at the space root', () => {
     const space = mock<SpaceResource>({
       id: 'owner$space',
       name: 'New space',
       driveType: 'project'
     })
+    const target = createCommentTarget(
+      space,
+      mock<Resource>({
+        id: 'owner$space',
+        name: 'New space',
+        path: '/',
+        isFolder: true
+      })
+    )
 
-    expect(getSpaceRootSidecarReadPaths(space)).toEqual([
-      '/.New space.jsco',
-      '/.New space.conflu.json',
-      '/.conflu/comments/owner_space.json'
-    ])
+    expect(getCommentDocumentPath(target)).toBe('/.New space.jsco')
   })
 })
 

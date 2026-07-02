@@ -1,6 +1,7 @@
 import { SpaceResource } from '@opencloud-eu/web-client'
 import { DashboardTargetSummary } from '../types'
 import { isGraphResourceId } from './commentTags'
+import { deriveSpaceRootFileId } from './spaceRootFileId'
 
 export interface GraphDriveItemClient {
   getDriveItem(
@@ -15,6 +16,36 @@ export async function enrichTargetLinkFromGraph(
   space: SpaceResource,
   target: DashboardTargetSummary
 ): Promise<DashboardTargetSummary> {
+  if (target.resourceType === 'space') {
+    const fileId = deriveSpaceRootFileId(space, target)
+
+    if (!fileId) {
+      return target
+    }
+
+    const enriched = {
+      ...target,
+      fileId
+    }
+
+    if (target.privateLink || !graph) {
+      return enriched
+    }
+
+    try {
+      const itemId = fileId.includes('!') ? fileId.split('!').pop()! : fileId
+      const driveItem = await graph.getDriveItem(space.id, itemId)
+
+      return {
+        ...enriched,
+        fileId: driveItem.id || fileId,
+        privateLink: driveItem.webUrl || target.privateLink
+      }
+    } catch {
+      return enriched
+    }
+  }
+
   if (target.privateLink || !graph || !isGraphResourceId(target.id)) {
     return target
   }
